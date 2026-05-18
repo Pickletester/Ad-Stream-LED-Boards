@@ -64,7 +64,7 @@ var LAST_CALL_AD_URL      =
 // Native design canvas of the ad (already built at 845x314)
 var LAST_CALL_AD_W        = 845;
 var LAST_CALL_AD_H        = 314;
-var LAST_CALL_FIT         = "contain"; // "contain" (letterbox) or "cover" (crop)
+var LAST_CALL_FIT         = "contain";
 
 var lastCallPreloadedKey = null;
 var lastCallShownKey     = null;
@@ -308,7 +308,6 @@ function buildLastCallOverlay() {
   var overlay = document.createElement("div");
   overlay.id = "last-call-popup";
 
-  // Scale the design canvas to fit 845x314
   var sx = 845 / LAST_CALL_AD_W;
   var sy = 314 / LAST_CALL_AD_H;
   var scale = LAST_CALL_FIT === "cover" ? Math.max(sx, sy) : Math.min(sx, sy);
@@ -363,27 +362,19 @@ function dismissLastCall() {
   }, 500);
 }
 
-function checkLastCallSchedule() {
-  var now = new Date();
-  if (LAST_CALL_DAYS.indexOf(now.getDay()) === -1) return;
-  if (now.getHours() !== LAST_CALL_HOUR) return;
-  var key = now.toDateString();
-  var m = now.getMinutes();
-
-  if (m === LAST_CALL_PRELOAD_MIN && lastCallPreloadedKey !== key) {
-    lastCallPreloadedKey = key;
-    preloadLastCall();
-    return;
-  }
-
-  if (m === LAST_CALL_MINUTE && lastCallShownKey !== key) {
-    lastCallShownKey = key;
+// ─── TEMP: loop the Last Call popup on playback ────────────────
+// 2 min on screen, 30s gap, repeat. Revert this block to restore the
+// 7:25 PM Tue–Sat schedule when done testing.
+var LAST_CALL_LOOP_GAP = 30 * 1000;
+function loopLastCall() {
+  preloadLastCall();
+  setTimeout(function() {
     revealLastCall();
-  }
+    setTimeout(loopLastCall, LAST_CALL_DURATION + LAST_CALL_LOOP_GAP);
+  }, 2500);
 }
-// TEMP: fire 60s after page load (revert to schedule when done testing)
-setTimeout(preloadLastCall, 5000);
-setTimeout(revealLastCall, 60000);
+setTimeout(loopLastCall, 5000);
+
 // ─── Test toggle: press "t" to show/hide the Last Call popup ──
 document.addEventListener("keydown", function(e) {
   if (e.key !== "t" && e.key !== "T") return;
@@ -393,7 +384,7 @@ document.addEventListener("keydown", function(e) {
     revealLastCall();
   } else {
     preloadLastCall();
-    setTimeout(revealLastCall, 2500); // let React + Babel boot
+    setTimeout(revealLastCall, 2500);
   }
 });
 
