@@ -18,6 +18,41 @@
   .slide img { width: 845px; height: 314px; object-fit: cover; display: block; }
   .slide video { width: 845px; height: 314px; object-fit: cover; display: block; background: #000; }
   #error { display: none; color: #fff; font-family: sans-serif; font-size: 14px; text-align: center; padding-top: 140px; }
+
+  /* ─── Last Call popup ─────────────────────────────────────── */
+  #last-call-popup {
+    position: fixed; top: 0; left: 0;
+    width: 845px; height: 314px;
+    background: linear-gradient(135deg, #1a0000 0%, #3a0a0a 100%);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.4s ease-in-out;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #fff;
+  }
+  #last-call-popup.show { opacity: 1; }
+  .lc-inner {
+    display: flex; flex-direction: row; align-items: center;
+    gap: 40px; padding: 0 50px;
+  }
+  .lc-text { display: flex; flex-direction: column; }
+  .lc-title {
+    font-size: 64px; font-weight: 900; letter-spacing: 4px;
+    color: #ffcc33; line-height: 1; text-transform: uppercase;
+  }
+  .lc-sub {
+    font-size: 26px; font-weight: 600; margin-top: 8px;
+    letter-spacing: 1px;
+  }
+  .lc-foot {
+    font-size: 16px; margin-top: 14px; opacity: 0.85;
+  }
+  .lc-qr {
+    width: 200px; height: 200px;
+    background: #fff; padding: 10px; border-radius: 8px;
+    display: block;
+  }
 </style>
 </head>
 <body>
@@ -31,13 +66,22 @@ var LOAD_TIMEOUT_MS = 8000;
 var PRELOAD_AHEAD = 2;
 
 // --- Reconnect / watchdog settings ---
-var WATCHDOG_INTERVAL    = 10000;  // check every 10s
-var WATCHDOG_MAX_STUCK   = 30000;  // if no advance in 30s, force recovery
-var HARD_RELOAD_INTERVAL = 4 * 60 * 60 * 1000; // hard reload every 4 hours
+var WATCHDOG_INTERVAL    = 10000;
+var WATCHDOG_MAX_STUCK   = 30000;
+var HARD_RELOAD_INTERVAL = 4 * 60 * 60 * 1000;
 
-// FIX 1: Cache ads.json for this many seconds — all boards within the same
-// bucket share one Cloudflare cache hit instead of busting it every request.
 var ADS_JSON_CACHE_BUCKET_SECONDS = 60;
+
+// --- Last Call popup settings ---
+var LAST_CALL_HOUR     = 19;   // 7 PM
+var LAST_CALL_MINUTE   = 30;
+var LAST_CALL_DURATION = 30000;            // 30s on screen
+var LAST_CALL_DAYS     = [2, 3, 4, 5, 6];  // Tue=2 ... Sat=6
+var LAST_CALL_QR_URL   = "https://example.com"; // <-- replace with real link
+var LAST_CALL_TITLE    = "LAST CALL";
+var LAST_CALL_SUB      = "Baseline Bar &amp; Grill";
+var LAST_CALL_FOOT     = "Scan for menu &amp; specials";
+var lastCallShownKey   = null;
 
 var player = document.getElementById("player");
 var errorEl = document.getElementById("error");
@@ -53,8 +97,6 @@ var imageCache = {};
 var lastAdvanceTime = Date.now();
 var watchdogTimer = null;
 
-// FIX 2: Track the last known ads.json content so silent refreshes
-// only rebuild state if the data actually changed.
 var lastAdsJson = null;
 
 function isVideo(f) { return /\.(mp4|webm)$/i.test(f); }
@@ -107,11 +149,8 @@ function clearTimers() {
   if (loadTimer)    { clearTimeout(loadTimer);    loadTimer = null; }
 }
 
-// ─── Watchdog ──────────────────────────────────────────────────────────────
 function forceRecovery(reason) {
   console.warn("Recovery triggered:", reason);
-  // FIX 3: Do NOT clear imageCache here — no reason to re-download all
-  // assets just because playback got stuck. Keep the cache intact.
   clearTimers();
   if (currentEl) {
     var oldVid = currentEl.querySelector("video");
@@ -133,7 +172,6 @@ function startWatchdog() {
   }, WATCHDOG_INTERVAL);
 }
 
-// ─── Visibility: recover immediately when screen wakes ─────────────────────
 document.addEventListener("visibilitychange", function() {
   if (document.visibilityState === "visible" && adList.length) {
     console.log("Tab became visible — re-syncing");
@@ -141,15 +179,11 @@ document.addEventListener("visibilitychange", function() {
   }
 });
 
-// FIX 4: Instead of location.reload() every 4 hours (which re-fetches all
-// assets), just silently refresh ads.json data and only reload the page
-// if something truly unrecoverable has happened (e.g. adList is empty).
 setTimeout(function() {
   console.log("Scheduled soft refresh of ads.json");
   refreshAdsJson();
 }, HARD_RELOAD_INTERVAL);
 
-// ─── Heartbeat: secondary layer — if advanceTimer fires late or never ───────
 setInterval(function() {
   if (!adList.length) return;
   var stuck = Date.now() - lastAdvanceTime;
@@ -158,7 +192,6 @@ setInterval(function() {
   }
 }, 15000);
 
-// ─── Preload ────────────────────────────────────────────────────────────────
 function preloadUpcoming(currentIndex) {
   for (var i = 1; i <= PRELOAD_AHEAD; i++) {
     var nextIdx = (currentIndex + i) % adList.length;
@@ -184,7 +217,6 @@ function getOrLoadImage(file, onLoad, onError) {
   if (!img.src) img.src = src;
 }
 
-// ─── Show slide ─────────────────────────────────────────────────────────────
 function showSlide(index) {
   clearTimers();
   lastAdvanceTime = Date.now();
@@ -283,22 +315,71 @@ function checkAndAdvance() {
   showSlide(getCurrentIndex());
 }
 
-// ─── ads.json fetch with time-bucketed cache key ─────────────────────────
-// FIX 1 (implementation): All boards within the same 60-second window
-// send the exact same URL, so Cloudflare serves it from cache after
-// the first hit. No more per-request cache busting.
+// ─── Last Call popup ───────────────────────────────────────────
+function showLastCallPopup() {
+  if (document.getElementById("last-call-popup")) return;
+
+  var overlay = document.createElement("div");
+  overlay.id = "last-call-popup";
+  var qrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data="
+            + encodeURIComponent(LAST_CALL_QR_URL);
+  overlay.innerHTML =
+    '<div class="lc-inner">' +
+      '<div class="lc-text">' +
+        '<div class="lc-title">' + LAST_CALL_TITLE + '</div>' +
+        '<div class="lc-sub">' + LAST_CALL_SUB + '</div>' +
+        '<div class="lc-foot">' + LAST_CALL_FOOT + '</div>' +
+      '</div>' +
+      '<img class="lc-qr" src="' + qrSrc + '" alt="QR code">' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() { overlay.classList.add("show"); });
+  });
+
+  setTimeout(function() {
+    var el = document.getElementById("last-call-popup");
+    if (!el) return;
+    el.classList.remove("show");
+    setTimeout(function() { if (el.parentNode) el.remove(); }, 500);
+  }, LAST_CALL_DURATION);
+}
+
+function checkLastCallPopup() {
+  var now = new Date();
+  if (LAST_CALL_DAYS.indexOf(now.getDay()) === -1) return;
+  if (now.getHours() !== LAST_CALL_HOUR) return;
+  if (now.getMinutes() !== LAST_CALL_MINUTE) return;
+  var key = now.toDateString();
+  if (lastCallShownKey === key) return;
+  lastCallShownKey = key;
+  showLastCallPopup();
+}
+setInterval(checkLastCallPopup, 20000); // poll every 20s
+
+// ─── Test toggle: press "t" to show/hide the Last Call popup ───
+document.addEventListener("keydown", function(e) {
+  if (e.key !== "t" && e.key !== "T") return;
+  var existing = document.getElementById("last-call-popup");
+  if (existing) {
+    existing.classList.remove("show");
+    setTimeout(function() { if (existing.parentNode) existing.remove(); }, 500);
+  } else {
+    showLastCallPopup();
+  }
+});
+
+// ─── ads.json fetch ───────────────────────────────────────────
 function getAdsCacheKey() {
   return Math.floor(Date.now() / (ADS_JSON_CACHE_BUCKET_SECONDS * 1000));
 }
 
-// FIX 4 (implementation): Silent background refresh — only rebuilds
-// state if ads actually changed. Never does a full page reload unless
-// adList is somehow empty after a fetch.
 function refreshAdsJson() {
   fetch("ads/ads.json?v=" + getAdsCacheKey())
     .then(function(r) { if (!r.ok) throw new Error("not found"); return r.json(); })
     .then(function(data) {
-      if (!data.ads || !data.ads.length) return; // nothing useful, keep running
+      if (!data.ads || !data.ads.length) return;
       var newJson = JSON.stringify(data.ads);
       if (newJson === lastAdsJson) {
         console.log("ads.json unchanged, skipping rebuild");
@@ -308,7 +389,6 @@ function refreshAdsJson() {
       lastAdsJson = newJson;
       adList = data.ads;
       buildOffsets();
-      // Invalidate cache entries for files no longer in the ad list
       var activeFiles = {};
       adList.forEach(function(ad) {
         var files = ad.rotate ? ad.files : [ad.file];
@@ -320,12 +400,9 @@ function refreshAdsJson() {
     })
     .catch(function(err) {
       console.warn("ads.json refresh failed (non-fatal):", err);
-      // Don't retry aggressively here — loadAds retry loop handles initial load.
-      // For background refresh failures just let the next scheduled refresh try.
     });
 }
 
-// ─── Init: fetch ads.json, retry on failure ──────────────────────────────
 function loadAds() {
   fetch("ads/ads.json?v=" + getAdsCacheKey())
     .then(function(r) { if (!r.ok) throw new Error("not found"); return r.json(); })
@@ -365,8 +442,6 @@ function loadAds() {
     .catch(function(err) {
       console.error("ads.json load failed:", err);
       errorEl.style.display = "block";
-      // FIX 5: Back off retry on repeated failure instead of hammering
-      // every 15s forever. 15s → 30s → 60s → 60s cap.
       var retryDelay = (loadAds._retryDelay = Math.min((loadAds._retryDelay || 15000) * 2, 60000));
       console.log("Retrying ads.json in " + retryDelay / 1000 + "s");
       setTimeout(loadAds, retryDelay);
