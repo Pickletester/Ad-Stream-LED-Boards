@@ -19,40 +19,20 @@
   .slide video { width: 845px; height: 314px; object-fit: cover; display: block; background: #000; }
   #error { display: none; color: #fff; font-family: sans-serif; font-size: 14px; text-align: center; padding-top: 140px; }
 
-  /* ─── Last Call popup ─────────────────────────────────────── */
+  /* ─── Last Call popup (preloaded iframe overlay) ───────── */
   #last-call-popup {
     position: fixed; top: 0; left: 0;
     width: 845px; height: 314px;
-    background: linear-gradient(135deg, #1a0000 0%, #3a0a0a 100%);
-    display: flex; align-items: center; justify-content: center;
+    background: #0a0808;
     z-index: 9999;
     opacity: 0;
+    pointer-events: none;
     transition: opacity 0.4s ease-in-out;
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    color: #fff;
+    overflow: hidden;
   }
   #last-call-popup.show { opacity: 1; }
-  .lc-inner {
-    display: flex; flex-direction: row; align-items: center;
-    gap: 40px; padding: 0 50px;
-  }
-  .lc-text { display: flex; flex-direction: column; }
-  .lc-title {
-    font-size: 64px; font-weight: 900; letter-spacing: 4px;
-    color: #ffcc33; line-height: 1; text-transform: uppercase;
-  }
-  .lc-sub {
-    font-size: 26px; font-weight: 600; margin-top: 8px;
-    letter-spacing: 1px;
-  }
-  .lc-foot {
-    font-size: 16px; margin-top: 14px; opacity: 0.85;
-  }
-  .lc-qr {
-    width: 200px; height: 200px;
-    background: #fff; padding: 10px; border-radius: 8px;
-    display: block;
-  }
+  #last-call-popup .lc-fit { position: absolute; }
+  #last-call-popup iframe { border: 0; display: block; background: #0a0808; }
 </style>
 </head>
 <body>
@@ -72,16 +52,24 @@ var HARD_RELOAD_INTERVAL = 4 * 60 * 60 * 1000;
 
 var ADS_JSON_CACHE_BUCKET_SECONDS = 60;
 
-// --- Last Call popup settings ---
-var LAST_CALL_HOUR     = 19;   // 7 PM
-var LAST_CALL_MINUTE   = 30;
-var LAST_CALL_DURATION = 30000;            // 30s on screen
-var LAST_CALL_DAYS     = [2, 3, 4, 5, 6];  // Tue=2 ... Sat=6
-var LAST_CALL_QR_URL   = "https://example.com"; // <-- replace with real link
-var LAST_CALL_TITLE    = "LAST CALL";
-var LAST_CALL_SUB      = "Baseline Bar &amp; Grill";
-var LAST_CALL_FOOT     = "Scan for menu &amp; specials";
-var lastCallShownKey   = null;
+// ─── Last Call popup settings ───────────────────────────────
+var LAST_CALL_HOUR        = 19;            // 7 PM
+var LAST_CALL_MINUTE      = 25;            // :25
+var LAST_CALL_PRELOAD_MIN = 24;            // preload at :24
+var LAST_CALL_DURATION    = 2 * 60 * 1000; // 2 minutes
+var LAST_CALL_DAYS        = [2, 3, 4, 5, 6]; // Tue=2 ... Sat=6
+var LAST_CALL_AD_URL      = "ads/last-call.html";
+
+// Design canvas of the ad — the iframe is created at this size,
+// then scaled to fit 845x314. Tweak if the ad is cropped or letterboxed.
+var LAST_CALL_AD_W        = 1200;
+var LAST_CALL_AD_H        = 800;
+var LAST_CALL_FIT         = "contain"; // "contain" (letterbox) or "cover" (crop)
+
+var lastCallPreloadedKey = null;
+var lastCallShownKey     = null;
+var lastCallOverlay      = null;
+var lastCallDismissTimer = null;
 
 var player = document.getElementById("player");
 var errorEl = document.getElementById("error");
@@ -316,57 +304,97 @@ function checkAndAdvance() {
 }
 
 // ─── Last Call popup ───────────────────────────────────────────
-function showLastCallPopup() {
-  if (document.getElementById("last-call-popup")) return;
-
+function buildLastCallOverlay() {
   var overlay = document.createElement("div");
   overlay.id = "last-call-popup";
-  var qrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data="
-            + encodeURIComponent(LAST_CALL_QR_URL);
-  overlay.innerHTML =
-    '<div class="lc-inner">' +
-      '<div class="lc-text">' +
-        '<div class="lc-title">' + LAST_CALL_TITLE + '</div>' +
-        '<div class="lc-sub">' + LAST_CALL_SUB + '</div>' +
-        '<div class="lc-foot">' + LAST_CALL_FOOT + '</div>' +
-      '</div>' +
-      '<img class="lc-qr" src="' + qrSrc + '" alt="QR code">' +
-    '</div>';
+
+  // Scale the design canvas to fit 845x314
+  var sx = 845 / LAST_CALL_AD_W;
+  var sy = 314 / LAST_CALL_AD_H;
+  var scale = LAST_CALL_FIT === "cover" ? Math.max(sx, sy) : Math.min(sx, sy);
+  var sw = LAST_CALL_AD_W * scale;
+  var sh = LAST_CALL_AD_H * scale;
+
+  var fit = document.createElement("div");
+  fit.className = "lc-fit";
+  fit.style.width  = LAST_CALL_AD_W + "px";
+  fit.style.height = LAST_CALL_AD_H + "px";
+  fit.style.transform = "scale(" + scale + ")";
+  fit.style.transformOrigin = "top left";
+  fit.style.left = ((845 - sw) / 2) + "px";
+  fit.style.top  = ((314 - sh) / 2) + "px";
+
+  var iframe = document.createElement("iframe");
+  iframe.src = LAST_CALL_AD_URL;
+  iframe.setAttribute("scrolling", "no");
+  iframe.style.width  = LAST_CALL_AD_W + "px";
+  iframe.style.height = LAST_CALL_AD_H + "px";
+
+  fit.appendChild(iframe);
+  overlay.appendChild(fit);
   document.body.appendChild(overlay);
-
-  requestAnimationFrame(function() {
-    requestAnimationFrame(function() { overlay.classList.add("show"); });
-  });
-
-  setTimeout(function() {
-    var el = document.getElementById("last-call-popup");
-    if (!el) return;
-    el.classList.remove("show");
-    setTimeout(function() { if (el.parentNode) el.remove(); }, 500);
-  }, LAST_CALL_DURATION);
+  return overlay;
 }
 
-function checkLastCallPopup() {
+function preloadLastCall() {
+  if (lastCallOverlay) return;
+  lastCallOverlay = buildLastCallOverlay();
+  console.log("Last Call preloaded");
+}
+
+function revealLastCall() {
+  if (!lastCallOverlay) preloadLastCall();
+  // Give the bundler a moment if we just created it
+  setTimeout(function() {
+    if (!lastCallOverlay) return;
+    lastCallOverlay.classList.add("show");
+    if (lastCallDismissTimer) clearTimeout(lastCallDismissTimer);
+    lastCallDismissTimer = setTimeout(dismissLastCall, LAST_CALL_DURATION);
+  }, 50);
+}
+
+function dismissLastCall() {
+  if (lastCallDismissTimer) { clearTimeout(lastCallDismissTimer); lastCallDismissTimer = null; }
+  var el = lastCallOverlay;
+  if (!el) return;
+  el.classList.remove("show");
+  setTimeout(function() {
+    if (el.parentNode) el.remove();
+    if (lastCallOverlay === el) lastCallOverlay = null;
+  }, 500);
+}
+
+function checkLastCallSchedule() {
   var now = new Date();
   if (LAST_CALL_DAYS.indexOf(now.getDay()) === -1) return;
   if (now.getHours() !== LAST_CALL_HOUR) return;
-  if (now.getMinutes() !== LAST_CALL_MINUTE) return;
   var key = now.toDateString();
-  if (lastCallShownKey === key) return;
-  lastCallShownKey = key;
-  showLastCallPopup();
-}
-setInterval(checkLastCallPopup, 20000); // poll every 20s
+  var m = now.getMinutes();
 
-// ─── Test toggle: press "t" to show/hide the Last Call popup ───
+  if (m === LAST_CALL_PRELOAD_MIN && lastCallPreloadedKey !== key) {
+    lastCallPreloadedKey = key;
+    preloadLastCall();
+    return;
+  }
+
+  if (m === LAST_CALL_MINUTE && lastCallShownKey !== key) {
+    lastCallShownKey = key;
+    revealLastCall();
+  }
+}
+setInterval(checkLastCallSchedule, 10000); // poll every 10s
+
+// ─── Test toggle: press "t" to show/hide the Last Call popup ──
 document.addEventListener("keydown", function(e) {
   if (e.key !== "t" && e.key !== "T") return;
-  var existing = document.getElementById("last-call-popup");
-  if (existing) {
-    existing.classList.remove("show");
-    setTimeout(function() { if (existing.parentNode) existing.remove(); }, 500);
+  if (lastCallOverlay && lastCallOverlay.classList.contains("show")) {
+    dismissLastCall();
+  } else if (lastCallOverlay) {
+    revealLastCall();
   } else {
-    showLastCallPopup();
+    preloadLastCall();
+    // give the bundle ~2.5s to unpack before showing
+    setTimeout(revealLastCall, 2500);
   }
 });
 
