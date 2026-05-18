@@ -58,12 +58,12 @@ var LAST_CALL_MINUTE      = 25;            // :25
 var LAST_CALL_PRELOAD_MIN = 24;            // preload at :24
 var LAST_CALL_DURATION    = 2 * 60 * 1000; // 2 minutes
 var LAST_CALL_DAYS        = [2, 3, 4, 5, 6]; // Tue=2 ... Sat=6
-var LAST_CALL_AD_URL      = "ads/last-call.html";
+var LAST_CALL_AD_URL      =
+  "https://pub-d884496adff243c08bda3301b36cb50f.r2.dev/Screen%20ad%20Baseline/Last%20Call.html";
 
-// Design canvas of the ad — the iframe is created at this size,
-// then scaled to fit 845x314. Tweak if the ad is cropped or letterboxed.
-var LAST_CALL_AD_W        = 1200;
-var LAST_CALL_AD_H        = 800;
+// Native design canvas of the ad (already built at 845x314)
+var LAST_CALL_AD_W        = 845;
+var LAST_CALL_AD_H        = 314;
 var LAST_CALL_FIT         = "contain"; // "contain" (letterbox) or "cover" (crop)
 
 var lastCallPreloadedKey = null;
@@ -344,7 +344,6 @@ function preloadLastCall() {
 
 function revealLastCall() {
   if (!lastCallOverlay) preloadLastCall();
-  // Give the bundler a moment if we just created it
   setTimeout(function() {
     if (!lastCallOverlay) return;
     lastCallOverlay.classList.add("show");
@@ -393,8 +392,7 @@ document.addEventListener("keydown", function(e) {
     revealLastCall();
   } else {
     preloadLastCall();
-    // give the bundle ~2.5s to unpack before showing
-    setTimeout(revealLastCall, 2500);
+    setTimeout(revealLastCall, 2500); // let React + Babel boot
   }
 });
 
