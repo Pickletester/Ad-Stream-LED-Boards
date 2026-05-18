@@ -381,8 +381,9 @@ function checkLastCallSchedule() {
     revealLastCall();
   }
 }
-setInterval(checkLastCallSchedule, 10000); // poll every 10s
-
+// TEMP: fire 60s after page load (revert to schedule when done testing)
+setTimeout(preloadLastCall, 5000);
+setTimeout(revealLastCall, 60000);
 // ─── Test toggle: press "t" to show/hide the Last Call popup ──
 document.addEventListener("keydown", function(e) {
   if (e.key !== "t" && e.key !== "T") return;
