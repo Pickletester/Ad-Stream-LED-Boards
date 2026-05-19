@@ -62,7 +62,7 @@
     position: absolute; top: 16px; left: 22px;
     display: flex; align-items: center; gap: 14px;
     will-change: opacity, transform;
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(0,0,0);
   }
   .brand img {
     width: 60px; height: 60px; display: block;
@@ -151,7 +151,7 @@
     color: var(--bone); line-height: 1; white-space: nowrap;
   }
 
-  /* QR (chromeless, bigger) */
+  /* QR — chromeless, bigger, with text fallback */
   .qr {
     position: absolute; top: 12px; right: 12px;
     width: 290px; height: 290px;
@@ -161,9 +161,28 @@
     transform: translate3d(0,0,0);
   }
   .qr img {
+    position: relative; z-index: 2;
     width: 100%; height: 100%;
     display: block;
     background: var(--bone);
+  }
+  .qr-fallback {
+    position: absolute; inset: 0; z-index: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: var(--bone);
+    color: var(--ink);
+    font-family: 'Bebas Neue', Impact, sans-serif;
+    font-size: 48px;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    text-align: center;
+  }
+  .qr-fallback .sub {
+    font-size: 20px;
+    letter-spacing: 0.15em;
+    color: var(--red);
+    margin-top: 14px;
   }
 </style>
 </head>
@@ -193,6 +212,10 @@
   </div>
 
   <div class="qr" id="qr">
+    <div class="qr-fallback" id="qrFallback">
+      ORDER<br>AT THE BAR
+      <div class="sub">ASK YOUR SERVER</div>
+    </div>
     <img id="qrImg" src="https://pub-d884496adff243c08bda3301b36cb50f.r2.dev/Screen%20ad%20Baseline/qr.png" alt="QR">
   </div>
 </div>
@@ -202,20 +225,37 @@
   var W = 845, H = 314, LOOP = 120;
   var FPS = 30, FRAME_MS = 1000 / FPS;
 
-  // Auto-retry images that fail on first load
-  function addRetry(img, maxTries) {
+  // ── Image watchdog: retry on error + poll for silent hangs ─
+  function watchImage(img, fallbackEl) {
     if (!img) return;
-    var base = img.src, tries = 0;
-    img.addEventListener('error', function() {
-      if (tries >= (maxTries || 20)) return;
+    var base = img.src.split('?')[0];
+    var tries = 0, max = 200; // try forever-ish
+    function reload() {
       tries++;
-      setTimeout(function() {
-        img.src = base + (base.indexOf('?') === -1 ? '?' : '&') + 'r=' + Date.now();
-      }, 3000);
+      img.src = base + '?r=' + Date.now();
+    }
+    function checkAndAct() {
+      if (img.complete && img.naturalWidth > 0) {
+        if (fallbackEl) fallbackEl.style.display = 'none';
+        return true;
+      }
+      if (fallbackEl) fallbackEl.style.display = 'flex';
+      if (tries < max) reload();
+      return false;
+    }
+    img.addEventListener('load', function(){
+      if (fallbackEl) fallbackEl.style.display = 'none';
     });
+    img.addEventListener('error', function(){
+      if (fallbackEl) fallbackEl.style.display = 'flex';
+      setTimeout(reload, 3000);
+    });
+    // Initial check + heartbeat every 5s
+    setTimeout(checkAndAct, 1000);
+    setInterval(checkAndAct, 5000);
   }
-  addRetry(document.getElementById('qrImg'));
-  addRetry(document.getElementById('logoImg'));
+  watchImage(document.getElementById('qrImg'), document.getElementById('qrFallback'));
+  watchImage(document.getElementById('logoImg'), null);
 
   var ICONS = {
     burger: '<svg width="44" height="44" viewBox="0 0 44 44">'+
@@ -323,7 +363,7 @@
   var flash    = document.getElementById('flash');
   var qr       = document.getElementById('qr');
 
-  // Memoized last-written values (skip the write if unchanged)
+  // Skip-if-unchanged style writes
   var prev = {};
   function setStyle(el, prop, v) {
     var key = el._id + ':' + prop;
@@ -335,7 +375,7 @@
   wCall._id = 'wC'; flash._id = 'fl'; qr._id = 'qr';
   for (var k = 0; k < foodItemEls.length; k++) foodItemEls[k]._id = 'fi' + k;
 
-  // 30fps loop — set with setInterval rather than RAF for deterministic pacing on weak browsers
+  // Fixed 30fps loop — steadier than RAF on weak browsers
   var t0 = Date.now() / 1000;
   function frame() {
     var t = ((Date.now() / 1000 - t0) % LOOP + LOOP) % LOOP;
@@ -359,12 +399,11 @@
     setStyle(headline, 'top',  y.toFixed(1) + 'px');
 
     var fsStr = fontSize.toFixed(1) + 'px';
-    setStyle(wLast, 'fontSize',   fsStr);
+    setStyle(wLast, 'fontSize',    fsStr);
     setStyle(wLast, 'marginRight', margin.toFixed(1) + 'px');
-    setStyle(wCall, 'fontSize',   fsStr);
+    setStyle(wCall, 'fontSize',    fsStr);
     setStyle(wCall, 'webkitTextStrokeWidth', (2 + (1 - rest) * 2).toFixed(2) + 'px');
 
-    // Text-shadow only changes during hero peaks — skip when at rest baseline
     if (big > 0.01) {
       var shOffX = 3 + (1 - rest) * 2;
       var shOffY = 4 + (1 - rest) * 3;
@@ -376,7 +415,6 @@
       setStyle(wLast, 'textShadow', '3px 4px 0 #a30620, 0 0 28px rgba(227,8,43,0.5)');
     }
 
-    // Flash — only compute / set when there's actually a flash visible
     function beat(off, per){ if(per==null) per=7; var phase = ((t - off) % per + per) % per; return Math.max(0, 1 - phase * 4); }
     var reflash = Math.max(
       beat(5),  beat(12), beat(19), beat(26), beat(33),
@@ -384,10 +422,8 @@
       beat(86), beat(93), beat(100), beat(107), beat(114)
     );
     var heroFlash = big > 0.92 ? Math.min(1, (big - 0.92) * 12) : 0;
-    var flashOp = Math.max(heroFlash, reflash * 0.65) * 0.55;
-    setStyle(flash, 'opacity', flashOp.toFixed(2));
+    setStyle(flash, 'opacity', (Math.max(heroFlash, reflash * 0.65) * 0.55).toFixed(2));
 
-    // Food items — only update opacity during hero transitions; wiggle is CSS now
     for (var i = 0; i < foodItemEls.length; i++) {
       var stagger = i * 0.18;
       var itemBig = heroBigness(t - stagger);
