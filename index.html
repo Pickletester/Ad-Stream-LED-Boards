@@ -41,6 +41,7 @@
             mask-image: radial-gradient(180px 180px at 170px 130px, #000 0%, #000 60%, transparent 100%);
     opacity: 0.18;
     animation: halftoneStrobe 2s ease-in-out infinite;
+    will-change: opacity;
   }
   @keyframes halftoneStrobe { 0%,100% { opacity: 0.12; } 50% { opacity: 0.22; } }
   .bg-scan {
@@ -56,9 +57,12 @@
     pointer-events: none;
   }
 
+  /* Brand */
   .brand {
     position: absolute; top: 16px; left: 22px;
     display: flex; align-items: center; gap: 14px;
+    will-change: opacity, transform;
+    transform: translate3d(0, 0, 0);
   }
   .brand img {
     width: 60px; height: 60px; display: block;
@@ -75,11 +79,13 @@
     color: var(--cream); margin-top: 2px;
   }
 
+  /* Headline */
   .headline {
     position: absolute;
     display: flex; align-items: baseline;
     pointer-events: none;
     transform-origin: left center;
+    will-change: left, top;
   }
   .headline .flash {
     position: absolute;
@@ -87,6 +93,7 @@
     background: radial-gradient(60% 80% at 40% 50%, var(--red) 0%, transparent 70%);
     mix-blend-mode: screen;
     opacity: 0;
+    will-change: opacity;
   }
   .headline .word {
     font-family: 'Bebas Neue', Impact, sans-serif;
@@ -94,17 +101,26 @@
     letter-spacing: -0.005em;
     font-weight: 400;
     white-space: nowrap;
+    will-change: font-size, transform;
+    transform: translate3d(0,0,0);
+    animation: headPulse 1.25s ease-in-out infinite;
   }
   .headline .word.last { color: var(--bone); }
   .headline .word.call {
     color: transparent;
     -webkit-text-stroke: 2px var(--bone);
   }
+  @keyframes headPulse {
+    0%, 100% { transform: translate3d(0,0,0) scale(1); }
+    50%      { transform: translate3d(0,0,0) scale(1.012); }
+  }
 
+  /* Food strip */
   .food {
     position: absolute; bottom: 14px; left: 22px;
     width: 525px; height: 78px;
     display: flex; align-items: center; gap: 6px;
+    will-change: opacity;
   }
   .food .accent {
     width: 3px; height: 56px;
@@ -115,6 +131,18 @@
   .food .item {
     display: flex; flex-direction: column; align-items: center;
     gap: 6px; width: 96px;
+    will-change: opacity, transform;
+    transform: translate3d(0,0,0);
+    animation: foodWiggle 3.0s ease-in-out infinite;
+  }
+  .food .item:nth-child(2) { animation-delay: -0.4s; }
+  .food .item:nth-child(3) { animation-delay: -0.8s; }
+  .food .item:nth-child(4) { animation-delay: -1.2s; }
+  .food .item:nth-child(5) { animation-delay: -1.6s; }
+  .food .item:nth-child(6) { animation-delay: -2.0s; }
+  @keyframes foodWiggle {
+    0%, 100% { transform: translate3d(0, -1px, 0); }
+    50%      { transform: translate3d(0,  1px, 0); }
   }
   .food .item .icon { filter: drop-shadow(0 0 8px var(--redGlow)); }
   .food .item .label {
@@ -123,41 +151,19 @@
     color: var(--bone); line-height: 1; white-space: nowrap;
   }
 
+  /* QR (chromeless, bigger) */
   .qr {
-    position: absolute; top: 16px; right: 16px;
-    width: 282px; height: 282px;
-    filter: drop-shadow(0 10px 24px rgba(0,0,0,0.6)) drop-shadow(0 0 28px var(--redGlow));
+    position: absolute; top: 12px; right: 12px;
+    width: 290px; height: 290px;
+    filter: drop-shadow(0 6px 18px rgba(0,0,0,0.6))
+            drop-shadow(0 0 28px var(--redGlow));
+    will-change: opacity, transform;
+    transform: translate3d(0,0,0);
   }
-  .qr-inner {
-    position: absolute; inset: 0;
+  .qr img {
+    width: 100%; height: 100%;
+    display: block;
     background: var(--bone);
-    border-radius: 4px; overflow: hidden;
-    outline: 2px solid var(--ink);
-  }
-  .qr-header {
-    position: absolute; top: 0; left: 0; right: 0; height: 48px;
-    background: var(--ink);
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Bebas Neue', Impact, sans-serif;
-    font-size: 22px; letter-spacing: 0.10em; color: var(--bone);
-  }
-  .qr-mid {
-    position: absolute; top: 48px; left: 0; right: 0; bottom: 54px;
-    background: var(--bone);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .qr-mid img { width: 168px; height: 168px; display: block; }
-  .qr-footer {
-    position: absolute; bottom: 0; left: 0; right: 0; height: 54px;
-    background: var(--red);
-    border-top: 2px solid var(--ink);
-    display: flex; align-items: center; justify-content: center; gap: 14px;
-  }
-  .qr-footer .scan {
-    font-family: 'Bebas Neue', Impact, sans-serif;
-    font-size: 32px; letter-spacing: 0.05em;
-    color: var(--bone); line-height: 1;
-    text-shadow: 1px 2px 0 rgba(0,0,0,0.3);
   }
 </style>
 </head>
@@ -169,7 +175,7 @@
   <div class="bg-vignette"></div>
 
   <div class="brand" id="brand">
-    <img src="https://pub-d884496adff243c08bda3301b36cb50f.r2.dev/Screen%20ad%20Baseline/logo.png" alt="Baseline">
+    <img src="https://pub-d884496adff243c08bda3301b36cb50f.r2.dev/Screen%20ad%20Baseline/logo.png" alt="Baseline" id="logoImg">
     <div>
       <div class="baseline">BASELINE</div>
       <div class="bag">BAR&nbsp;AND&nbsp;GRILLE</div>
@@ -187,24 +193,29 @@
   </div>
 
   <div class="qr" id="qr">
-    <div class="qr-inner">
-      <div class="qr-header">ORDER FROM THE COURT</div>
-      <div class="qr-mid"><img src="https://pub-d884496adff243c08bda3301b36cb50f.r2.dev/Screen%20ad%20Baseline/qr.png" alt="QR"></div>
-      <div class="qr-footer">
-        <div class="scan" id="scan">SCAN TO ORDER</div>
-        <svg class="arrow" id="arrow" width="28" height="22" viewBox="0 0 28 22">
-          <path d="M2 11 L22 11 M16 4 L24 11 L16 18"
-                fill="none" stroke="#f5efe6" stroke-width="3.2"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-    </div>
+    <img id="qrImg" src="https://pub-d884496adff243c08bda3301b36cb50f.r2.dev/Screen%20ad%20Baseline/qr.png" alt="QR">
   </div>
 </div>
 
 <script>
 (function(){
   var W = 845, H = 314, LOOP = 120;
+  var FPS = 30, FRAME_MS = 1000 / FPS;
+
+  // Auto-retry images that fail on first load
+  function addRetry(img, maxTries) {
+    if (!img) return;
+    var base = img.src, tries = 0;
+    img.addEventListener('error', function() {
+      if (tries >= (maxTries || 20)) return;
+      tries++;
+      setTimeout(function() {
+        img.src = base + (base.indexOf('?') === -1 ? '?' : '&') + 'r=' + Date.now();
+      }, 3000);
+    });
+  }
+  addRetry(document.getElementById('qrImg'));
+  addRetry(document.getElementById('logoImg'));
 
   var ICONS = {
     burger: '<svg width="44" height="44" viewBox="0 0 44 44">'+
@@ -270,7 +281,6 @@
       '<path d="M30 5 Q31 3 29 2" stroke="#4a8a2a" stroke-width="1.2" fill="none" stroke-linecap="round"/>'+
       '</svg>'
   };
-
   var FOOD_ITEMS = [
     { kind: 'burger',    label: 'BURGERS'    },
     { kind: 'wing',      label: 'WINGS'      },
@@ -278,7 +288,6 @@
     { kind: 'fries',     label: 'FRIES'      },
     { kind: 'draft',     label: 'DRAFTS'     }
   ];
-
   var foodEl = document.getElementById('food');
   var foodItemEls = [];
   for (var i = 0; i < FOOD_ITEMS.length; i++) {
@@ -291,9 +300,7 @@
   }
 
   function heroBigness(t) {
-    var events = [0, 40, 80];
-    var PEAK_HALF = 1.0, TRANS = 2.0;
-    var max = 0;
+    var events = [0, 40, 80], PEAK_HALF = 1.0, TRANS = 2.0, max = 0;
     for (var i = 0; i < events.length; i++) {
       var dist = Math.abs(t - events[i]);
       dist = Math.min(dist, LOOP - dist);
@@ -315,86 +322,84 @@
   var wCall    = document.getElementById('wCall');
   var flash    = document.getElementById('flash');
   var qr       = document.getElementById('qr');
-  var scan     = document.getElementById('scan');
-  var arrow    = document.getElementById('arrow');
 
-  var t0 = performance.now() / 1000;
-  function frame(now) {
-    var t = ((now / 1000 - t0) % LOOP + LOOP) % LOOP;
-    var big = heroBigness(t);
-    var rest = 1 - big;
+  // Memoized last-written values (skip the write if unchanged)
+  var prev = {};
+  function setStyle(el, prop, v) {
+    var key = el._id + ':' + prop;
+    if (prev[key] === v) return;
+    prev[key] = v;
+    el.style[prop] = v;
+  }
+  brand._id = 'brand'; headline._id = 'head'; wLast._id = 'wL';
+  wCall._id = 'wC'; flash._id = 'fl'; qr._id = 'qr';
+  for (var k = 0; k < foodItemEls.length; k++) foodItemEls[k]._id = 'fi' + k;
 
-    brand.style.opacity = rest;
-    brand.style.transform = 'translateY(' + (-12 * big) + 'px)';
+  // 30fps loop — set with setInterval rather than RAF for deterministic pacing on weak browsers
+  var t0 = Date.now() / 1000;
+  function frame() {
+    var t = ((Date.now() / 1000 - t0) % LOOP + LOOP) % LOOP;
+    var big = heroBigness(t), rest = 1 - big;
+
+    setStyle(brand, 'opacity', rest.toFixed(3));
+    setStyle(brand, 'transform', 'translate3d(0,' + (-12 * big).toFixed(1) + 'px,0)');
 
     var FONT_BIG = 200, FONT_SMALL = 124;
     var fontSize = FONT_BIG + (FONT_SMALL - FONT_BIG) * rest;
-    var charW = fontSize * 0.42;
-    var wordW = 4 * charW;
+    var charW = fontSize * 0.42, wordW = 4 * charW;
     var margin = 14 + (24 - 14) * (1 - rest);
     var totalW = 2 * wordW + margin;
-    var xCenter = (W - totalW) / 2;
-    var xLeft = 64;
+    var xCenter = (W - totalW) / 2, xLeft = 64;
     var x = xCenter + (xLeft - xCenter) * rest;
     var textH = fontSize * 0.85;
-    var yCenter = (H - textH) / 2 - 6;
-    var yTop = 100;
+    var yCenter = (H - textH) / 2 - 6, yTop = 100;
     var y = yCenter + (yTop - yCenter) * rest;
 
-    headline.style.left = x + 'px';
-    headline.style.top  = y + 'px';
+    setStyle(headline, 'left', x.toFixed(1) + 'px');
+    setStyle(headline, 'top',  y.toFixed(1) + 'px');
 
-    var pulse = 1 + 0.012 * Math.sin(t * 5);
-    var shadowOffX = 3 + (1 - rest) * 2;
-    var shadowOffY = 4 + (1 - rest) * 3;
-    var shadowBlur = 28 + (1 - rest) * 30;
+    var fsStr = fontSize.toFixed(1) + 'px';
+    setStyle(wLast, 'fontSize',   fsStr);
+    setStyle(wLast, 'marginRight', margin.toFixed(1) + 'px');
+    setStyle(wCall, 'fontSize',   fsStr);
+    setStyle(wCall, 'webkitTextStrokeWidth', (2 + (1 - rest) * 2).toFixed(2) + 'px');
 
-    wLast.style.fontSize = fontSize + 'px';
-    wLast.style.marginRight = margin + 'px';
-    wLast.style.transform = 'scale(' + pulse + ')';
-    wLast.style.textShadow = shadowOffX + 'px ' + shadowOffY + 'px 0 #a30620, 0 0 ' + shadowBlur + 'px rgba(227,8,43,0.5)';
-
-    wCall.style.fontSize = fontSize + 'px';
-    wCall.style.transform = 'scale(' + pulse + ')';
-    wCall.style.webkitTextStrokeWidth = (2 + (1 - rest) * 2) + 'px';
-
-    function beat(off, per){
-      if(per==null) per=7;
-      var phase = ((t - off) % per + per) % per;
-      return Math.max(0, 1 - phase * 4);
+    // Text-shadow only changes during hero peaks — skip when at rest baseline
+    if (big > 0.01) {
+      var shOffX = 3 + (1 - rest) * 2;
+      var shOffY = 4 + (1 - rest) * 3;
+      var shBlur = 28 + (1 - rest) * 30;
+      setStyle(wLast, 'textShadow',
+        shOffX.toFixed(1) + 'px ' + shOffY.toFixed(1) + 'px 0 #a30620, 0 0 ' +
+        shBlur.toFixed(1) + 'px rgba(227,8,43,0.5)');
+    } else {
+      setStyle(wLast, 'textShadow', '3px 4px 0 #a30620, 0 0 28px rgba(227,8,43,0.5)');
     }
+
+    // Flash — only compute / set when there's actually a flash visible
+    function beat(off, per){ if(per==null) per=7; var phase = ((t - off) % per + per) % per; return Math.max(0, 1 - phase * 4); }
     var reflash = Math.max(
       beat(5),  beat(12), beat(19), beat(26), beat(33),
       beat(46), beat(53), beat(60), beat(67), beat(74),
       beat(86), beat(93), beat(100), beat(107), beat(114)
     );
     var heroFlash = big > 0.92 ? Math.min(1, (big - 0.92) * 12) : 0;
-    flash.style.opacity = Math.max(heroFlash, reflash * 0.65) * 0.55;
+    var flashOp = Math.max(heroFlash, reflash * 0.65) * 0.55;
+    setStyle(flash, 'opacity', flashOp.toFixed(2));
 
+    // Food items — only update opacity during hero transitions; wiggle is CSS now
     for (var i = 0; i < foodItemEls.length; i++) {
       var stagger = i * 0.18;
       var itemBig = heroBigness(t - stagger);
-      var itemOp = 1 - itemBig;
-      var wiggle = Math.sin(t * 2.5 + i * 0.7) * 1.5;
-      var bouncePeriod = 8.0;
-      var bouncePhase = ((t - (5.5 + i * 0.18)) % bouncePeriod + bouncePeriod) % bouncePeriod;
-      var bouncePop = bouncePhase < 0.5 ? Math.sin(bouncePhase * Math.PI * 2) * 0.12 : 0;
-      var s = 1 + bouncePop;
-      foodItemEls[i].style.opacity = itemOp;
-      foodItemEls[i].style.transform = 'translateY(' + wiggle + 'px) scale(' + s + ')';
+      setStyle(foodItemEls[i], 'opacity', (1 - itemBig).toFixed(3));
     }
 
-    qr.style.opacity = rest;
-    qr.style.transform = 'translateX(' + (80 * big) + 'px)';
-
-    var scanPulse = 0.96 + 0.04 * (Math.sin(t * 4) * 0.5 + 0.5);
-    var arrowBob = Math.sin(t * 3) * 3;
-    scan.style.transform = 'scale(' + scanPulse + ')';
-    arrow.style.transform = 'translateX(' + arrowBob + 'px)';
-
-    requestAnimationFrame(frame);
+    setStyle(qr, 'opacity', rest.toFixed(3));
+    setStyle(qr, 'transform', 'translate3d(' + (80 * big).toFixed(1) + 'px,0,0)');
   }
-  requestAnimationFrame(frame);
+
+  setInterval(frame, FRAME_MS);
+  frame();
 })();
 </script>
 </body>
