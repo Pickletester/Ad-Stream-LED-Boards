@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Baseline Last Call</title>
+<meta name="viewport" content="width=845, initial-scale=1.0">
+<title>Ad Player</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -17,22 +18,35 @@
     --cream:    #efe6d6;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body {
+  html, body { width: 845px; height: 314px; overflow: hidden; background: #000; font-family: 'Inter', system-ui, sans-serif; }
+  #player { position: relative; width: 845px; height: 314px; background: #000; }
+  .slide { position: absolute; top: 0; left: 0; width: 845px; height: 314px; opacity: 0; transition: opacity 0.3s ease-in-out; }
+  .slide.visible { opacity: 1; }
+  .slide img { width: 845px; height: 314px; object-fit: cover; display: block; }
+  .slide video { width: 845px; height: 314px; object-fit: cover; display: block; background: #000; }
+  #error { display: none; color: #fff; font-family: sans-serif; font-size: 14px; text-align: center; padding-top: 140px; }
+
+  /* ─── Last Call overlay ────────────────────────────────── */
+  #lc {
+    position: fixed; top: 0; left: 0;
     width: 845px; height: 314px;
-    background: var(--black);
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease-in-out;
     overflow: hidden;
-    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--black);
     color: var(--bone);
   }
-  .stage { position: relative; width: 845px; height: 314px; overflow: hidden; }
+  #lc.show { opacity: 1; }
 
-  .bg-base {
+  #lc .bg-base {
     position: absolute; inset: 0;
     background:
       linear-gradient(105deg, var(--redDeep) 0%, rgba(163,6,32,0) 38%),
       radial-gradient(120% 80% at 30% 50%, #1a0608 0%, var(--black) 60%, #060404 100%);
   }
-  .bg-halftone {
+  #lc .bg-halftone {
     position: absolute; inset: 0;
     background-image: radial-gradient(circle at 1px 1px, var(--red) 0.8px, transparent 1px);
     background-size: 5px 5px;
@@ -40,54 +54,44 @@
     -webkit-mask-image: radial-gradient(180px 180px at 170px 130px, #000 0%, #000 60%, transparent 100%);
             mask-image: radial-gradient(180px 180px at 170px 130px, #000 0%, #000 60%, transparent 100%);
     opacity: 0.18;
-    animation: halftoneStrobe 2s ease-in-out infinite;
+    animation: lcStrobe 2s ease-in-out infinite;
     will-change: opacity;
   }
-  @keyframes halftoneStrobe { 0%,100% { opacity: 0.12; } 50% { opacity: 0.22; } }
-  .bg-scan {
+  @keyframes lcStrobe { 0%,100% { opacity: 0.12; } 50% { opacity: 0.22; } }
+  #lc .bg-scan {
     position: absolute; inset: 0;
     background-image: repeating-linear-gradient(0deg,
       rgba(0,0,0,0.55) 0px, rgba(0,0,0,0.55) 1px,
       transparent 1px, transparent 3px);
     opacity: 0.06; mix-blend-mode: multiply; pointer-events: none;
   }
-  .bg-vignette {
+  #lc .bg-vignette {
     position: absolute; inset: 0;
     background: radial-gradient(120% 100% at 50% 50%, transparent 55%, rgba(0,0,0,0.55) 100%);
     pointer-events: none;
   }
 
-  /* Brand */
-  .brand {
+  #lcBrand {
     position: absolute; top: 16px; left: 22px;
     display: flex; align-items: center; gap: 14px;
     will-change: opacity, transform;
     transform: translate3d(0,0,0);
   }
-  .brand img {
+  #lcBrand img {
     width: 60px; height: 60px; display: block;
     filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
   }
-  .brand .baseline {
-    font-family: 'Bebas Neue', Impact, sans-serif;
-    font-size: 36px; letter-spacing: 0.10em;
-    color: var(--bone); line-height: 0.95;
-  }
-  .brand .bag {
-    font-family: 'Bebas Neue', Impact, sans-serif;
-    font-size: 18px; letter-spacing: 0.22em;
-    color: var(--cream); margin-top: 2px;
-  }
+  #lcBrand .baseline { font-family: 'Bebas Neue', Impact, sans-serif; font-size: 36px; letter-spacing: 0.10em; color: var(--bone); line-height: 0.95; }
+  #lcBrand .bag      { font-family: 'Bebas Neue', Impact, sans-serif; font-size: 18px; letter-spacing: 0.22em; color: var(--cream); margin-top: 2px; }
 
-  /* Headline */
-  .headline {
+  #lcHead {
     position: absolute;
     display: flex; align-items: baseline;
     pointer-events: none;
     transform-origin: left center;
     will-change: left, top;
   }
-  .headline .flash {
+  #lcHead .flash {
     position: absolute;
     left: -80px; top: -60px; right: -80px; bottom: -60px;
     background: radial-gradient(60% 80% at 40% 50%, var(--red) 0%, transparent 70%);
@@ -95,7 +99,7 @@
     opacity: 0;
     will-change: opacity;
   }
-  .headline .word {
+  #lcHead .word {
     font-family: 'Bebas Neue', Impact, sans-serif;
     line-height: 0.85;
     letter-spacing: -0.005em;
@@ -103,56 +107,47 @@
     white-space: nowrap;
     will-change: font-size, transform;
     transform: translate3d(0,0,0);
-    animation: headPulse 1.25s ease-in-out infinite;
+    animation: lcHeadPulse 1.25s ease-in-out infinite;
   }
-  .headline .word.last { color: var(--bone); }
-  .headline .word.call {
-    color: transparent;
-    -webkit-text-stroke: 2px var(--bone);
-  }
-  @keyframes headPulse {
+  #lcHead .word.last { color: var(--bone); }
+  #lcHead .word.call { color: transparent; -webkit-text-stroke: 2px var(--bone); }
+  @keyframes lcHeadPulse {
     0%, 100% { transform: translate3d(0,0,0) scale(1); }
     50%      { transform: translate3d(0,0,0) scale(1.012); }
   }
 
-  /* Food strip */
-  .food {
+  #lcFood {
     position: absolute; bottom: 14px; left: 22px;
     width: 525px; height: 78px;
     display: flex; align-items: center; gap: 6px;
     will-change: opacity;
   }
-  .food .accent {
+  #lcFood .accent {
     width: 3px; height: 56px;
     background: var(--red);
     box-shadow: 0 0 10px var(--redGlow);
     margin-right: 6px;
   }
-  .food .item {
+  #lcFood .item {
     display: flex; flex-direction: column; align-items: center;
     gap: 6px; width: 96px;
     will-change: opacity, transform;
     transform: translate3d(0,0,0);
-    animation: foodWiggle 3.0s ease-in-out infinite;
+    animation: lcFoodWiggle 3.0s ease-in-out infinite;
   }
-  .food .item:nth-child(2) { animation-delay: -0.4s; }
-  .food .item:nth-child(3) { animation-delay: -0.8s; }
-  .food .item:nth-child(4) { animation-delay: -1.2s; }
-  .food .item:nth-child(5) { animation-delay: -1.6s; }
-  .food .item:nth-child(6) { animation-delay: -2.0s; }
-  @keyframes foodWiggle {
+  #lcFood .item:nth-child(2) { animation-delay: -0.4s; }
+  #lcFood .item:nth-child(3) { animation-delay: -0.8s; }
+  #lcFood .item:nth-child(4) { animation-delay: -1.2s; }
+  #lcFood .item:nth-child(5) { animation-delay: -1.6s; }
+  #lcFood .item:nth-child(6) { animation-delay: -2.0s; }
+  @keyframes lcFoodWiggle {
     0%, 100% { transform: translate3d(0, -1px, 0); }
     50%      { transform: translate3d(0,  1px, 0); }
   }
-  .food .item .icon { filter: drop-shadow(0 0 8px var(--redGlow)); }
-  .food .item .label {
-    font-family: 'Bebas Neue', Impact, sans-serif;
-    font-size: 16px; letter-spacing: 0.1em;
-    color: var(--bone); line-height: 1; white-space: nowrap;
-  }
+  #lcFood .item .icon  { filter: drop-shadow(0 0 8px var(--redGlow)); }
+  #lcFood .item .label { font-family: 'Bebas Neue', Impact, sans-serif; font-size: 16px; letter-spacing: 0.1em; color: var(--bone); line-height: 1; white-space: nowrap; }
 
-  /* QR — chromeless, bigger, with text fallback */
-  .qr {
+  #lcQr {
     position: absolute; top: 12px; right: 12px;
     width: 290px; height: 290px;
     filter: drop-shadow(0 6px 18px rgba(0,0,0,0.6))
@@ -160,13 +155,13 @@
     will-change: opacity, transform;
     transform: translate3d(0,0,0);
   }
-  .qr img {
+  #lcQr img {
     position: relative; z-index: 2;
     width: 100%; height: 100%;
     display: block;
     background: var(--bone);
   }
-  .qr-fallback {
+  #lcQrFallback {
     position: absolute; inset: 0; z-index: 1;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
@@ -178,7 +173,7 @@
     line-height: 1;
     text-align: center;
   }
-  .qr-fallback .sub {
+  #lcQrFallback .sub {
     font-size: 20px;
     letter-spacing: 0.15em;
     color: var(--red);
@@ -187,256 +182,475 @@
 </style>
 </head>
 <body>
-<div class="stage">
+
+<div id="player"><div id="error">Could not load ads.json</div></div>
+
+<!-- ─── Last Call overlay (hidden until 7:30) ─── -->
+<div id="lc" aria-hidden="true">
   <div class="bg-base"></div>
   <div class="bg-halftone"></div>
   <div class="bg-scan"></div>
   <div class="bg-vignette"></div>
 
-  <div class="brand" id="brand">
-    <img src="https://pub-d884496adff243c08bda3301b36cb50f.r2.dev/Screen%20ad%20Baseline/logo.png" alt="Baseline" id="logoImg">
+  <div id="lcBrand">
+    <img src="https://pub-d884496adff243c08bda3301b36cb50f.r2.dev/Screen%20ad%20Baseline/logo.png" alt="Baseline" id="lcLogoImg">
     <div>
       <div class="baseline">BASELINE</div>
       <div class="bag">BAR&nbsp;AND&nbsp;GRILLE</div>
     </div>
   </div>
 
-  <div class="headline" id="headline">
-    <div class="flash" id="flash"></div>
-    <div class="word last" id="wLast">LAST</div>
-    <div class="word call" id="wCall">CALL</div>
+  <div id="lcHead">
+    <div class="flash" id="lcFlash"></div>
+    <div class="word last" id="lcWLast">LAST</div>
+    <div class="word call" id="lcWCall">CALL</div>
   </div>
 
-  <div class="food" id="food">
-    <div class="accent"></div>
-  </div>
+  <div id="lcFood"><div class="accent"></div></div>
 
-  <div class="qr" id="qr">
-    <div class="qr-fallback" id="qrFallback">
+  <div id="lcQr">
+    <div id="lcQrFallback">
       ORDER<br>AT THE BAR
       <div class="sub">ASK YOUR SERVER</div>
     </div>
-    <img id="qrImg" src="https://pub-d884496adff243c08bda3301b36cb50f.r2.dev/Screen%20ad%20Baseline/qr.png" alt="QR">
+    <img id="lcQrImg" src="https://pub-d884496adff243c08bda3301b36cb50f.r2.dev/Screen%20ad%20Baseline/qr.png" alt="QR">
   </div>
 </div>
 
 <script>
-(function(){
-  var W = 845, H = 314, LOOP = 120;
-  var FPS = 30, FRAME_MS = 1000 / FPS;
+/* ════════════════════════════════════════════════════════════════════
+   Ad player — slideshow from ads.json (untouched logic from before)
+   ════════════════════════════════════════════════════════════════════ */
+var ADS_FOLDER = "ads/";
+var DEFAULT_IMAGE_DURATION = 10;
+var LOAD_TIMEOUT_MS = 8000;
+var PRELOAD_AHEAD = 2;
+var WATCHDOG_INTERVAL    = 10000;
+var WATCHDOG_MAX_STUCK   = 30000;
+var HARD_RELOAD_INTERVAL = 4 * 60 * 60 * 1000;
+var ADS_JSON_CACHE_BUCKET_SECONDS = 60;
 
-  // ── Image watchdog: retry on error + poll for silent hangs ─
-  function watchImage(img, fallbackEl) {
-    if (!img) return;
-    var base = img.src.split('?')[0];
-    var tries = 0, max = 200; // try forever-ish
-    function reload() {
-      tries++;
-      img.src = base + '?r=' + Date.now();
-    }
-    function checkAndAct() {
-      if (img.complete && img.naturalWidth > 0) {
-        if (fallbackEl) fallbackEl.style.display = 'none';
-        return true;
-      }
-      if (fallbackEl) fallbackEl.style.display = 'flex';
-      if (tries < max) reload();
-      return false;
-    }
-    img.addEventListener('load', function(){
-      if (fallbackEl) fallbackEl.style.display = 'none';
-    });
-    img.addEventListener('error', function(){
-      if (fallbackEl) fallbackEl.style.display = 'flex';
-      setTimeout(reload, 3000);
-    });
-    // Initial check + heartbeat every 5s
-    setTimeout(checkAndAct, 1000);
-    setInterval(checkAndAct, 5000);
+var player = document.getElementById("player");
+var errorEl = document.getElementById("error");
+var adList = [], currentEl = null, advanceTimer = null, loadTimer = null;
+var cycleLength = 0, offsets = [], imageCache = {};
+var lastAdvanceTime = Date.now(), watchdogTimer = null, lastAdsJson = null;
+
+function isVideo(f) { return /\.(mp4|webm)$/i.test(f); }
+function getSlotDuration(item) {
+  if (item.rotate) return item.duration || DEFAULT_IMAGE_DURATION;
+  return isVideo(item.file) ? (item.duration || 30) : (item.duration || DEFAULT_IMAGE_DURATION);
+}
+function getRotateFile(item) {
+  var now = Math.floor(Date.now() / 1000);
+  return item.files[Math.floor(now / cycleLength) % item.files.length];
+}
+function resolveFile(item) { return item.rotate ? getRotateFile(item) : item.file; }
+function buildOffsets() {
+  cycleLength = 0; offsets = [];
+  for (var i = 0; i < adList.length; i++) { offsets.push(cycleLength); cycleLength += getSlotDuration(adList[i]); }
+}
+function getCurrentIndex() {
+  var pos = Math.floor(Date.now() / 1000) % cycleLength;
+  for (var i = offsets.length - 1; i >= 0; i--) if (pos >= offsets[i]) return i;
+  return 0;
+}
+function getMsRemaining(index) {
+  var pos = Math.floor(Date.now() / 1000) % cycleLength;
+  return Math.max((getSlotDuration(adList[index]) - (pos - offsets[index])) * 1000, 500);
+}
+function clearTimers() {
+  if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
+  if (loadTimer)    { clearTimeout(loadTimer);    loadTimer = null; }
+}
+function forceRecovery(reason) {
+  console.warn("Recovery triggered:", reason);
+  clearTimers();
+  if (currentEl) {
+    var oldVid = currentEl.querySelector("video");
+    if (oldVid) { oldVid.pause(); oldVid.removeAttribute("src"); oldVid.load(); }
+    currentEl.remove(); currentEl = null;
   }
-  watchImage(document.getElementById('qrImg'), document.getElementById('qrFallback'));
-  watchImage(document.getElementById('logoImg'), null);
+  lastAdvanceTime = Date.now(); checkAndAdvance();
+}
+function startWatchdog() {
+  if (watchdogTimer) clearInterval(watchdogTimer);
+  watchdogTimer = setInterval(function() {
+    if (Date.now() - lastAdvanceTime > WATCHDOG_MAX_STUCK)
+      forceRecovery("stuck for " + Math.round((Date.now() - lastAdvanceTime) / 1000) + "s");
+  }, WATCHDOG_INTERVAL);
+}
+document.addEventListener("visibilitychange", function() {
+  if (document.visibilityState === "visible" && adList.length) forceRecovery("visibilitychange");
+});
+setTimeout(function() { refreshAdsJson(); }, HARD_RELOAD_INTERVAL);
+setInterval(function() {
+  if (!adList.length) return;
+  if (Date.now() - lastAdvanceTime > 45000) forceRecovery("heartbeat secondary check");
+}, 15000);
 
-  var ICONS = {
-    burger: '<svg width="44" height="44" viewBox="0 0 44 44">'+
-      '<path d="M6 19 Q6 8 22 8 Q38 8 38 19 Z" fill="#e6b34d"/>'+
-      '<path d="M6 19 Q6 8 22 8 Q38 8 38 19 Z" fill="none" stroke="#b8842b" stroke-width="0.8"/>'+
-      '<path d="M9 16 Q10 11 17 10" stroke="#fbf6e8" stroke-width="1.4" fill="none" stroke-linecap="round" opacity="0.7"/>'+
-      '<ellipse cx="14" cy="14" rx="1.1" ry="0.55" transform="rotate(-15 14 14)" fill="#fbf6e8"/>'+
-      '<ellipse cx="22" cy="11.5" rx="1.1" ry="0.55" fill="#fbf6e8"/>'+
-      '<ellipse cx="30" cy="14" rx="1.1" ry="0.55" transform="rotate(15 30 14)" fill="#fbf6e8"/>'+
-      '<path d="M5 19 Q5 22 7 22 Q10 25 13 22 Q16 25 19 22 Q22 25 25 22 Q28 25 31 22 Q34 25 37 22 Q39 22 39 19 L39 23 L5 23 Z" fill="#7bb04a"/>'+
-      '<rect x="6" y="23" width="32" height="2.4" fill="#d4302c"/>'+
-      '<path d="M6 25 L38 25 L38 27 Q34 28 30 26.5 Q26 28 22 26.5 Q18 28 14 26.5 Q10 28 6 27 Z" fill="#e6b34d"/>'+
-      '<path d="M7 27 L37 27 Q38.5 27 38.5 28.5 L38.5 30.5 Q38.5 32 37 32 L7 32 Q5.5 32 5.5 30.5 L5.5 28.5 Q5.5 27 7 27 Z" fill="#6b3a1e"/>'+
-      '<path d="M6 32 L38 32 Q38 38 30 38 L14 38 Q6 38 6 32 Z" fill="#e6b34d"/>'+
-      '<path d="M6 32 L38 32 Q38 38 30 38 L14 38 Q6 38 6 32 Z" fill="none" stroke="#b8842b" stroke-width="0.8"/>'+
-      '</svg>',
-    wing: '<svg width="44" height="44" viewBox="0 0 44 44">'+
-      '<path d="M10 33 Q3 30 5 22 Q6 14 14 12 Q22 10 25 17 Q28 23 24 27 Q22 31 18 32 Q14 34 10 33 Z" fill="#d6873a" stroke="#8a4818" stroke-width="0.9" stroke-linejoin="round"/>'+
-      '<path d="M8 22 Q11 18 15 17" stroke="#f3b768" stroke-width="1.6" fill="none" stroke-linecap="round"/>'+
-      '<ellipse cx="13" cy="27" rx="2" ry="1" fill="#f3b768" opacity="0.6"/>'+
-      '<line x1="24" y1="17" x2="33" y2="8" stroke="#f0e6c8" stroke-width="2.4" stroke-linecap="round"/>'+
-      '<line x1="24" y1="17" x2="33" y2="8" stroke="#a89572" stroke-width="0.6" stroke-linecap="round"/>'+
-      '<circle cx="35" cy="6" r="2.8" fill="#f0e6c8" stroke="#a89572" stroke-width="0.7"/>'+
-      '<circle cx="38.5" cy="3.5" r="1.7" fill="#f0e6c8" stroke="#a89572" stroke-width="0.7"/>'+
-      '<path d="M16 8 Q18 5 16 2" stroke="#e3082b" stroke-width="1.8" fill="none" stroke-linecap="round"/>'+
-      '</svg>',
-    flatbread: '<svg width="44" height="44" viewBox="0 0 44 44">'+
-      '<rect x="2" y="11" width="40" height="20" rx="3" fill="#dcb069" stroke="#9a6b30" stroke-width="0.9"/>'+
-      '<path d="M5 14 Q4.5 13.5 5.5 13.5 L38.5 13.5 Q39.5 13.5 39 14 L39.5 27 Q39.5 28 38.5 28.5 L5.5 28.5 Q4.5 28 4.5 27 L4.5 15 Q4.5 14.5 5 14 Z" fill="#f3c84a"/>'+
-      '<circle cx="10" cy="18" r="2.6" fill="#d4302c"/>'+
-      '<circle cx="22" cy="16" r="2.8" fill="#d4302c"/>'+
-      '<circle cx="34" cy="18" r="2.6" fill="#d4302c"/>'+
-      '<circle cx="16" cy="25" r="2.5" fill="#d4302c"/>'+
-      '<circle cx="28" cy="25" r="2.5" fill="#d4302c"/>'+
-      '<ellipse cx="6.8" cy="22" rx="1.1" ry="0.55" fill="#7bb04a" transform="rotate(-25 6.8 22)"/>'+
-      '<ellipse cx="22" cy="22" rx="1.1" ry="0.55" fill="#7bb04a" transform="rotate(30 22 22)"/>'+
-      '<ellipse cx="37" cy="22" rx="1" ry="0.5" fill="#7bb04a" transform="rotate(-15 37 22)"/>'+
-      '</svg>',
-    fries: '<svg width="44" height="44" viewBox="0 0 44 44">'+
-      '<rect x="11.6" y="8" width="2.8" height="16" fill="#f5b832"/>'+
-      '<rect x="11.6" y="8" width="2.8" height="2.2" fill="#fcd66a"/>'+
-      '<rect x="15.6" y="5" width="2.8" height="19" fill="#f5b832"/>'+
-      '<rect x="15.6" y="5" width="2.8" height="2.2" fill="#fcd66a"/>'+
-      '<rect x="19.6" y="7" width="2.8" height="17" fill="#f5b832"/>'+
-      '<rect x="19.6" y="7" width="2.8" height="2.2" fill="#fcd66a"/>'+
-      '<rect x="23.6" y="4" width="2.8" height="20" fill="#f5b832"/>'+
-      '<rect x="23.6" y="4" width="2.8" height="2.2" fill="#fcd66a"/>'+
-      '<rect x="27.6" y="9" width="2.8" height="15" fill="#f5b832"/>'+
-      '<rect x="27.6" y="9" width="2.8" height="2.2" fill="#fcd66a"/>'+
-      '<path d="M8 22 L34 22 L31 39 L11 39 Z" fill="#e3082b"/>'+
-      '<rect x="8" y="22" width="26" height="4" fill="#fbf6e8"/>'+
-      '<text x="21" y="36" text-anchor="middle" font-family="Bebas Neue, Impact, sans-serif" font-size="10" fill="#fbf6e8">B</text>'+
-      '</svg>',
-    draft: '<svg width="44" height="44" viewBox="0 0 44 44">'+
-      '<path d="M11 9 L33 9 L30 39 L14 39 Z" fill="#e89518"/>'+
-      '<path d="M14 11 L16 38" stroke="#fcd66a" stroke-width="1.6" stroke-linecap="round" opacity="0.7"/>'+
-      '<path d="M11 9 L33 9 L30 39 L14 39 Z" fill="none" stroke="#9b6212" stroke-width="0.8"/>'+
-      '<path d="M11 9 Q12 4 16 7 Q19 2 22 6 Q25 2 28 7 Q32 4 33 9 L33 12 Q31 14 28 12 Q25 14 22 12 Q19 14 16 12 Q13 14 11 12 Z" fill="#fbf6e8" stroke="#c4b89a" stroke-width="0.7" stroke-linejoin="round"/>'+
-      '<circle cx="18" cy="22" r="1" fill="#fbf6e8" opacity="0.85"/>'+
-      '<circle cx="25" cy="28" r="1" fill="#fbf6e8" opacity="0.85"/>'+
-      '<circle cx="20" cy="34" r="1" fill="#fbf6e8" opacity="0.85"/>'+
-      '<circle cx="30" cy="6.5" r="2" fill="#e3082b"/>'+
-      '<path d="M30 5 Q31 3 29 2" stroke="#4a8a2a" stroke-width="1.2" fill="none" stroke-linecap="round"/>'+
-      '</svg>'
-  };
-  var FOOD_ITEMS = [
-    { kind: 'burger',    label: 'BURGERS'    },
-    { kind: 'wing',      label: 'WINGS'      },
-    { kind: 'flatbread', label: 'FLATBREAD'  },
-    { kind: 'fries',     label: 'FRIES'      },
-    { kind: 'draft',     label: 'DRAFTS'     }
-  ];
-  var foodEl = document.getElementById('food');
-  var foodItemEls = [];
-  for (var i = 0; i < FOOD_ITEMS.length; i++) {
-    var it = FOOD_ITEMS[i];
-    var d = document.createElement('div');
-    d.className = 'item';
-    d.innerHTML = '<div class="icon">'+ICONS[it.kind]+'</div><div class="label">'+it.label+'</div>';
-    foodEl.appendChild(d);
-    foodItemEls.push(d);
-  }
-
-  function heroBigness(t) {
-    var events = [0, 40, 80], PEAK_HALF = 1.0, TRANS = 2.0, max = 0;
-    for (var i = 0; i < events.length; i++) {
-      var dist = Math.abs(t - events[i]);
-      dist = Math.min(dist, LOOP - dist);
-      var b;
-      if (dist < PEAK_HALF) b = 1;
-      else if (dist < PEAK_HALF + TRANS) {
-        var local = (dist - PEAK_HALF) / TRANS;
-        var eased = local < 0.5 ? 2 * local * local : 1 - Math.pow(-2 * local + 2, 2) / 2;
-        b = 1 - eased;
-      } else b = 0;
-      if (b > max) max = b;
+function preloadUpcoming(currentIndex) {
+  for (var i = 1; i <= PRELOAD_AHEAD; i++) {
+    var nextIdx = (currentIndex + i) % adList.length;
+    var file = resolveFile(adList[nextIdx]);
+    if (!imageCache[file] && !isVideo(file)) {
+      var img = new Image();
+      img.src = ADS_FOLDER + encodeURIComponent(file);
+      imageCache[file] = img;
     }
-    return max;
   }
+}
+function getOrLoadImage(file, onLoad, onError) {
+  var src = ADS_FOLDER + encodeURIComponent(file);
+  if (imageCache[file] && imageCache[file].complete && imageCache[file].naturalWidth > 0) { onLoad(imageCache[file]); return; }
+  var img = imageCache[file] || new Image();
+  imageCache[file] = img;
+  img.onload  = function() { onLoad(img); };
+  img.onerror = function() { delete imageCache[file]; onError(); };
+  if (!img.src) img.src = src;
+}
+function showSlide(index) {
+  clearTimers();
+  lastAdvanceTime = Date.now();
+  var item = adList[index], file = resolveFile(item);
 
-  var brand    = document.getElementById('brand');
-  var headline = document.getElementById('headline');
-  var wLast    = document.getElementById('wLast');
-  var wCall    = document.getElementById('wCall');
-  var flash    = document.getElementById('flash');
-  var qr       = document.getElementById('qr');
-
-  // Skip-if-unchanged style writes
-  var prev = {};
-  function setStyle(el, prop, v) {
-    var key = el._id + ':' + prop;
-    if (prev[key] === v) return;
-    prev[key] = v;
-    el.style[prop] = v;
-  }
-  brand._id = 'brand'; headline._id = 'head'; wLast._id = 'wL';
-  wCall._id = 'wC'; flash._id = 'fl'; qr._id = 'qr';
-  for (var k = 0; k < foodItemEls.length; k++) foodItemEls[k]._id = 'fi' + k;
-
-  // Fixed 30fps loop — steadier than RAF on weak browsers
-  var t0 = Date.now() / 1000;
-  function frame() {
-    var t = ((Date.now() / 1000 - t0) % LOOP + LOOP) % LOOP;
-    var big = heroBigness(t), rest = 1 - big;
-
-    setStyle(brand, 'opacity', rest.toFixed(3));
-    setStyle(brand, 'transform', 'translate3d(0,' + (-12 * big).toFixed(1) + 'px,0)');
-
-    var FONT_BIG = 200, FONT_SMALL = 124;
-    var fontSize = FONT_BIG + (FONT_SMALL - FONT_BIG) * rest;
-    var charW = fontSize * 0.42, wordW = 4 * charW;
-    var margin = 14 + (24 - 14) * (1 - rest);
-    var totalW = 2 * wordW + margin;
-    var xCenter = (W - totalW) / 2, xLeft = 64;
-    var x = xCenter + (xLeft - xCenter) * rest;
-    var textH = fontSize * 0.85;
-    var yCenter = (H - textH) / 2 - 6, yTop = 100;
-    var y = yCenter + (yTop - yCenter) * rest;
-
-    setStyle(headline, 'left', x.toFixed(1) + 'px');
-    setStyle(headline, 'top',  y.toFixed(1) + 'px');
-
-    var fsStr = fontSize.toFixed(1) + 'px';
-    setStyle(wLast, 'fontSize',    fsStr);
-    setStyle(wLast, 'marginRight', margin.toFixed(1) + 'px');
-    setStyle(wCall, 'fontSize',    fsStr);
-    setStyle(wCall, 'webkitTextStrokeWidth', (2 + (1 - rest) * 2).toFixed(2) + 'px');
-
-    if (big > 0.01) {
-      var shOffX = 3 + (1 - rest) * 2;
-      var shOffY = 4 + (1 - rest) * 3;
-      var shBlur = 28 + (1 - rest) * 30;
-      setStyle(wLast, 'textShadow',
-        shOffX.toFixed(1) + 'px ' + shOffY.toFixed(1) + 'px 0 #a30620, 0 0 ' +
-        shBlur.toFixed(1) + 'px rgba(227,8,43,0.5)');
-    } else {
-      setStyle(wLast, 'textShadow', '3px 4px 0 #a30620, 0 0 28px rgba(227,8,43,0.5)');
+  if (isVideo(file)) {
+    if (currentEl) {
+      var oldVid = currentEl.querySelector("video");
+      if (oldVid) { oldVid.pause(); oldVid.removeAttribute("src"); oldVid.load(); }
+      currentEl.remove(); currentEl = null;
     }
-
-    function beat(off, per){ if(per==null) per=7; var phase = ((t - off) % per + per) % per; return Math.max(0, 1 - phase * 4); }
-    var reflash = Math.max(
-      beat(5),  beat(12), beat(19), beat(26), beat(33),
-      beat(46), beat(53), beat(60), beat(67), beat(74),
-      beat(86), beat(93), beat(100), beat(107), beat(114)
+    var div = document.createElement("div"); div.className = "slide";
+    var vid = document.createElement("video");
+    vid.src = ADS_FOLDER + encodeURIComponent(file);
+    vid.muted = true; vid.playsInline = true; vid.preload = "auto";
+    var vidLoadTimer = setTimeout(function() { checkAndAdvance(); }, LOAD_TIMEOUT_MS);
+    vid.addEventListener("canplay", function() { clearTimeout(vidLoadTimer); div.classList.add("visible"); vid.play().catch(function() { checkAndAdvance(); }); });
+    vid.addEventListener("ended", checkAndAdvance);
+    vid.addEventListener("error", function() { clearTimeout(vidLoadTimer); checkAndAdvance(); });
+    div.appendChild(vid); player.appendChild(div); currentEl = div;
+    preloadUpcoming(index);
+    advanceTimer = setTimeout(checkAndAdvance, getMsRemaining(index) + 500);
+  } else {
+    loadTimer = setTimeout(function() { delete imageCache[file]; checkAndAdvance(); }, LOAD_TIMEOUT_MS);
+    getOrLoadImage(file,
+      function(img) {
+        clearTimeout(loadTimer); loadTimer = null;
+        var div = document.createElement("div"); div.className = "slide";
+        var imgEl = document.createElement("img"); imgEl.src = img.src;
+        div.appendChild(imgEl); player.appendChild(div);
+        requestAnimationFrame(function() { requestAnimationFrame(function() { div.classList.add("visible"); }); });
+        if (currentEl) {
+          var old = currentEl;
+          setTimeout(function() { old.classList.remove("visible"); setTimeout(function() { old.remove(); }, 350); }, 50);
+        }
+        currentEl = div; preloadUpcoming(index);
+        advanceTimer = setTimeout(checkAndAdvance, getMsRemaining(index));
+      },
+      function() { clearTimeout(loadTimer); loadTimer = null; advanceTimer = setTimeout(checkAndAdvance, 500); }
     );
-    var heroFlash = big > 0.92 ? Math.min(1, (big - 0.92) * 12) : 0;
-    setStyle(flash, 'opacity', (Math.max(heroFlash, reflash * 0.65) * 0.55).toFixed(2));
+  }
+}
+function checkAndAdvance() { clearTimers(); showSlide(getCurrentIndex()); }
+function getAdsCacheKey() { return Math.floor(Date.now() / (ADS_JSON_CACHE_BUCKET_SECONDS * 1000)); }
+function refreshAdsJson() {
+  fetch("ads/ads.json?v=" + getAdsCacheKey())
+    .then(function(r) { if (!r.ok) throw new Error("not found"); return r.json(); })
+    .then(function(data) {
+      if (!data.ads || !data.ads.length) return;
+      var newJson = JSON.stringify(data.ads);
+      if (newJson === lastAdsJson) return;
+      lastAdsJson = newJson; adList = data.ads; buildOffsets();
+      var activeFiles = {};
+      adList.forEach(function(ad) { (ad.rotate ? ad.files : [ad.file]).forEach(function(f) { activeFiles[f] = true; }); });
+      Object.keys(imageCache).forEach(function(f) { if (!activeFiles[f]) delete imageCache[f]; });
+    })
+    .catch(function(err) { console.warn("ads.json refresh failed:", err); });
+}
+function loadAds() {
+  fetch("ads/ads.json?v=" + getAdsCacheKey())
+    .then(function(r) { if (!r.ok) throw new Error("not found"); return r.json(); })
+    .then(function(data) {
+      if (!data.ads || !data.ads.length) throw new Error("empty");
+      lastAdsJson = JSON.stringify(data.ads); adList = data.ads; buildOffsets();
+      errorEl.style.display = "none";
+      var started = false;
+      function tryStart() {
+        if (started) return; started = true;
+        setTimeout(function() { checkAndAdvance(); startWatchdog(); }, 1000 - (Date.now() % 1000));
+      }
+      var loaded = 0;
+      adList.forEach(function(ad, i) {
+        var file = resolveFile(ad);
+        if (isVideo(file)) { loaded++; if (loaded === adList.length) tryStart(); return; }
+        var img = new Image();
+        img.onload = img.onerror = function() { loaded++; if (i === getCurrentIndex() || loaded === adList.length) tryStart(); };
+        img.src = ADS_FOLDER + encodeURIComponent(file);
+        imageCache[file] = img;
+      });
+      setTimeout(tryStart, 3000);
+    })
+    .catch(function(err) {
+      errorEl.style.display = "block";
+      var retryDelay = (loadAds._retryDelay = Math.min((loadAds._retryDelay || 15000) * 2, 60000));
+      setTimeout(loadAds, retryDelay);
+    });
+}
+loadAds();
 
-    for (var i = 0; i < foodItemEls.length; i++) {
-      var stagger = i * 0.18;
-      var itemBig = heroBigness(t - stagger);
-      setStyle(foodItemEls[i], 'opacity', (1 - itemBig).toFixed(3));
+/* ════════════════════════════════════════════════════════════════════
+   Last Call overlay — vanilla, inline, GPU-accelerated
+   Schedule: 7:30 PM Tue–Sat, 10 minutes
+   Test:     press "T" to toggle
+   ════════════════════════════════════════════════════════════════════ */
+var LC_HOUR     = 19;             // 7 PM
+var LC_MIN      = 30;             // :30
+var LC_DURATION = 10 * 60 * 1000; // 10 minutes
+var LC_DAYS     = [2, 3, 4, 5, 6]; // Tue=2 ... Sat=6
+var LC_W = 845, LC_H = 314, LC_LOOP = 120, LC_FPS = 30;
+
+var lcEl       = document.getElementById('lc');
+var lcBrand    = document.getElementById('lcBrand');
+var lcHead     = document.getElementById('lcHead');
+var lcLast     = document.getElementById('lcWLast');
+var lcCall     = document.getElementById('lcWCall');
+var lcFlash    = document.getElementById('lcFlash');
+var lcQr       = document.getElementById('lcQr');
+var lcFoodEl   = document.getElementById('lcFood');
+var lcQrImg    = document.getElementById('lcQrImg');
+var lcLogoImg  = document.getElementById('lcLogoImg');
+var lcQrFallback = document.getElementById('lcQrFallback');
+
+// Image watchdog: retry on error + poll for silent hangs + text fallback
+function lcWatchImage(img, fallbackEl) {
+  if (!img) return;
+  var base = img.src.split('?')[0];
+  function reload() { img.src = base + '?r=' + Date.now(); }
+  function check() {
+    if (img.complete && img.naturalWidth > 0) {
+      if (fallbackEl) fallbackEl.style.display = 'none';
+      return;
     }
+    if (fallbackEl) fallbackEl.style.display = 'flex';
+    reload();
+  }
+  img.addEventListener('load', function(){ if (fallbackEl) fallbackEl.style.display = 'none'; });
+  img.addEventListener('error', function(){
+    if (fallbackEl) fallbackEl.style.display = 'flex';
+    setTimeout(reload, 3000);
+  });
+  setTimeout(check, 1500);
+  setInterval(check, 5000);
+}
+lcWatchImage(lcQrImg, lcQrFallback);
+lcWatchImage(lcLogoImg, null);
 
-    setStyle(qr, 'opacity', rest.toFixed(3));
-    setStyle(qr, 'transform', 'translate3d(' + (80 * big).toFixed(1) + 'px,0,0)');
+// Food icons (inline SVG)
+var LC_ICONS = {
+  burger: '<svg width="44" height="44" viewBox="0 0 44 44">'+
+    '<path d="M6 19 Q6 8 22 8 Q38 8 38 19 Z" fill="#e6b34d"/>'+
+    '<path d="M6 19 Q6 8 22 8 Q38 8 38 19 Z" fill="none" stroke="#b8842b" stroke-width="0.8"/>'+
+    '<path d="M9 16 Q10 11 17 10" stroke="#fbf6e8" stroke-width="1.4" fill="none" stroke-linecap="round" opacity="0.7"/>'+
+    '<ellipse cx="14" cy="14" rx="1.1" ry="0.55" transform="rotate(-15 14 14)" fill="#fbf6e8"/>'+
+    '<ellipse cx="22" cy="11.5" rx="1.1" ry="0.55" fill="#fbf6e8"/>'+
+    '<ellipse cx="30" cy="14" rx="1.1" ry="0.55" transform="rotate(15 30 14)" fill="#fbf6e8"/>'+
+    '<path d="M5 19 Q5 22 7 22 Q10 25 13 22 Q16 25 19 22 Q22 25 25 22 Q28 25 31 22 Q34 25 37 22 Q39 22 39 19 L39 23 L5 23 Z" fill="#7bb04a"/>'+
+    '<rect x="6" y="23" width="32" height="2.4" fill="#d4302c"/>'+
+    '<path d="M6 25 L38 25 L38 27 Q34 28 30 26.5 Q26 28 22 26.5 Q18 28 14 26.5 Q10 28 6 27 Z" fill="#e6b34d"/>'+
+    '<path d="M7 27 L37 27 Q38.5 27 38.5 28.5 L38.5 30.5 Q38.5 32 37 32 L7 32 Q5.5 32 5.5 30.5 L5.5 28.5 Q5.5 27 7 27 Z" fill="#6b3a1e"/>'+
+    '<path d="M6 32 L38 32 Q38 38 30 38 L14 38 Q6 38 6 32 Z" fill="#e6b34d"/>'+
+    '<path d="M6 32 L38 32 Q38 38 30 38 L14 38 Q6 38 6 32 Z" fill="none" stroke="#b8842b" stroke-width="0.8"/>'+
+    '</svg>',
+  wing: '<svg width="44" height="44" viewBox="0 0 44 44">'+
+    '<path d="M10 33 Q3 30 5 22 Q6 14 14 12 Q22 10 25 17 Q28 23 24 27 Q22 31 18 32 Q14 34 10 33 Z" fill="#d6873a" stroke="#8a4818" stroke-width="0.9" stroke-linejoin="round"/>'+
+    '<path d="M8 22 Q11 18 15 17" stroke="#f3b768" stroke-width="1.6" fill="none" stroke-linecap="round"/>'+
+    '<ellipse cx="13" cy="27" rx="2" ry="1" fill="#f3b768" opacity="0.6"/>'+
+    '<line x1="24" y1="17" x2="33" y2="8" stroke="#f0e6c8" stroke-width="2.4" stroke-linecap="round"/>'+
+    '<line x1="24" y1="17" x2="33" y2="8" stroke="#a89572" stroke-width="0.6" stroke-linecap="round"/>'+
+    '<circle cx="35" cy="6" r="2.8" fill="#f0e6c8" stroke="#a89572" stroke-width="0.7"/>'+
+    '<circle cx="38.5" cy="3.5" r="1.7" fill="#f0e6c8" stroke="#a89572" stroke-width="0.7"/>'+
+    '<path d="M16 8 Q18 5 16 2" stroke="#e3082b" stroke-width="1.8" fill="none" stroke-linecap="round"/>'+
+    '</svg>',
+  flatbread: '<svg width="44" height="44" viewBox="0 0 44 44">'+
+    '<rect x="2" y="11" width="40" height="20" rx="3" fill="#dcb069" stroke="#9a6b30" stroke-width="0.9"/>'+
+    '<path d="M5 14 Q4.5 13.5 5.5 13.5 L38.5 13.5 Q39.5 13.5 39 14 L39.5 27 Q39.5 28 38.5 28.5 L5.5 28.5 Q4.5 28 4.5 27 L4.5 15 Q4.5 14.5 5 14 Z" fill="#f3c84a"/>'+
+    '<circle cx="10" cy="18" r="2.6" fill="#d4302c"/>'+
+    '<circle cx="22" cy="16" r="2.8" fill="#d4302c"/>'+
+    '<circle cx="34" cy="18" r="2.6" fill="#d4302c"/>'+
+    '<circle cx="16" cy="25" r="2.5" fill="#d4302c"/>'+
+    '<circle cx="28" cy="25" r="2.5" fill="#d4302c"/>'+
+    '<ellipse cx="6.8" cy="22" rx="1.1" ry="0.55" fill="#7bb04a" transform="rotate(-25 6.8 22)"/>'+
+    '<ellipse cx="22" cy="22" rx="1.1" ry="0.55" fill="#7bb04a" transform="rotate(30 22 22)"/>'+
+    '<ellipse cx="37" cy="22" rx="1" ry="0.5" fill="#7bb04a" transform="rotate(-15 37 22)"/>'+
+    '</svg>',
+  fries: '<svg width="44" height="44" viewBox="0 0 44 44">'+
+    '<rect x="11.6" y="8" width="2.8" height="16" fill="#f5b832"/>'+
+    '<rect x="11.6" y="8" width="2.8" height="2.2" fill="#fcd66a"/>'+
+    '<rect x="15.6" y="5" width="2.8" height="19" fill="#f5b832"/>'+
+    '<rect x="15.6" y="5" width="2.8" height="2.2" fill="#fcd66a"/>'+
+    '<rect x="19.6" y="7" width="2.8" height="17" fill="#f5b832"/>'+
+    '<rect x="19.6" y="7" width="2.8" height="2.2" fill="#fcd66a"/>'+
+    '<rect x="23.6" y="4" width="2.8" height="20" fill="#f5b832"/>'+
+    '<rect x="23.6" y="4" width="2.8" height="2.2" fill="#fcd66a"/>'+
+    '<rect x="27.6" y="9" width="2.8" height="15" fill="#f5b832"/>'+
+    '<rect x="27.6" y="9" width="2.8" height="2.2" fill="#fcd66a"/>'+
+    '<path d="M8 22 L34 22 L31 39 L11 39 Z" fill="#e3082b"/>'+
+    '<rect x="8" y="22" width="26" height="4" fill="#fbf6e8"/>'+
+    '<text x="21" y="36" text-anchor="middle" font-family="Bebas Neue, Impact, sans-serif" font-size="10" fill="#fbf6e8">B</text>'+
+    '</svg>',
+  draft: '<svg width="44" height="44" viewBox="0 0 44 44">'+
+    '<path d="M11 9 L33 9 L30 39 L14 39 Z" fill="#e89518"/>'+
+    '<path d="M14 11 L16 38" stroke="#fcd66a" stroke-width="1.6" stroke-linecap="round" opacity="0.7"/>'+
+    '<path d="M11 9 L33 9 L30 39 L14 39 Z" fill="none" stroke="#9b6212" stroke-width="0.8"/>'+
+    '<path d="M11 9 Q12 4 16 7 Q19 2 22 6 Q25 2 28 7 Q32 4 33 9 L33 12 Q31 14 28 12 Q25 14 22 12 Q19 14 16 12 Q13 14 11 12 Z" fill="#fbf6e8" stroke="#c4b89a" stroke-width="0.7" stroke-linejoin="round"/>'+
+    '<circle cx="18" cy="22" r="1" fill="#fbf6e8" opacity="0.85"/>'+
+    '<circle cx="25" cy="28" r="1" fill="#fbf6e8" opacity="0.85"/>'+
+    '<circle cx="20" cy="34" r="1" fill="#fbf6e8" opacity="0.85"/>'+
+    '<circle cx="30" cy="6.5" r="2" fill="#e3082b"/>'+
+    '<path d="M30 5 Q31 3 29 2" stroke="#4a8a2a" stroke-width="1.2" fill="none" stroke-linecap="round"/>'+
+    '</svg>'
+};
+var LC_FOOD = [
+  { kind: 'burger',    label: 'BURGERS'    },
+  { kind: 'wing',      label: 'WINGS'      },
+  { kind: 'flatbread', label: 'FLATBREAD'  },
+  { kind: 'fries',     label: 'FRIES'      },
+  { kind: 'draft',     label: 'DRAFTS'     }
+];
+var lcFoodItemEls = [];
+for (var i = 0; i < LC_FOOD.length; i++) {
+  var d = document.createElement('div');
+  d.className = 'item';
+  d.innerHTML = '<div class="icon">'+LC_ICONS[LC_FOOD[i].kind]+'</div><div class="label">'+LC_FOOD[i].label+'</div>';
+  lcFoodEl.appendChild(d);
+  lcFoodItemEls.push(d);
+}
+
+function lcHeroBigness(t) {
+  var events = [0, 40, 80], PEAK_HALF = 1.0, TRANS = 2.0, max = 0;
+  for (var i = 0; i < events.length; i++) {
+    var dist = Math.abs(t - events[i]);
+    dist = Math.min(dist, LC_LOOP - dist);
+    var b;
+    if (dist < PEAK_HALF) b = 1;
+    else if (dist < PEAK_HALF + TRANS) {
+      var local = (dist - PEAK_HALF) / TRANS;
+      var eased = local < 0.5 ? 2 * local * local : 1 - Math.pow(-2 * local + 2, 2) / 2;
+      b = 1 - eased;
+    } else b = 0;
+    if (b > max) max = b;
+  }
+  return max;
+}
+
+// Memoized style writes
+var lcPrev = {};
+function lcSet(el, prop, v) {
+  var key = el._id + ':' + prop;
+  if (lcPrev[key] === v) return;
+  lcPrev[key] = v;
+  el.style[prop] = v;
+}
+lcBrand._id = 'b'; lcHead._id = 'h'; lcLast._id = 'wL';
+lcCall._id = 'wC'; lcFlash._id = 'f'; lcQr._id = 'q';
+for (var k = 0; k < lcFoodItemEls.length; k++) lcFoodItemEls[k]._id = 'i' + k;
+
+var lcInterval = null, lcT0 = 0;
+function lcFrame() {
+  var t = ((Date.now() / 1000 - lcT0) % LC_LOOP + LC_LOOP) % LC_LOOP;
+  var big = lcHeroBigness(t), rest = 1 - big;
+
+  lcSet(lcBrand, 'opacity', rest.toFixed(3));
+  lcSet(lcBrand, 'transform', 'translate3d(0,' + (-12 * big).toFixed(1) + 'px,0)');
+
+  var FONT_BIG = 200, FONT_SMALL = 124;
+  var fontSize = FONT_BIG + (FONT_SMALL - FONT_BIG) * rest;
+  var charW = fontSize * 0.42, wordW = 4 * charW;
+  var margin = 14 + (24 - 14) * (1 - rest);
+  var totalW = 2 * wordW + margin;
+  var xCenter = (LC_W - totalW) / 2, xLeft = 64;
+  var x = xCenter + (xLeft - xCenter) * rest;
+  var textH = fontSize * 0.85;
+  var yCenter = (LC_H - textH) / 2 - 6, yTop = 100;
+  var y = yCenter + (yTop - yCenter) * rest;
+
+  lcSet(lcHead, 'left', x.toFixed(1) + 'px');
+  lcSet(lcHead, 'top',  y.toFixed(1) + 'px');
+
+  var fsStr = fontSize.toFixed(1) + 'px';
+  lcSet(lcLast, 'fontSize',    fsStr);
+  lcSet(lcLast, 'marginRight', margin.toFixed(1) + 'px');
+  lcSet(lcCall, 'fontSize',    fsStr);
+  lcSet(lcCall, 'webkitTextStrokeWidth', (2 + (1 - rest) * 2).toFixed(2) + 'px');
+
+  if (big > 0.01) {
+    var shOffX = 3 + (1 - rest) * 2;
+    var shOffY = 4 + (1 - rest) * 3;
+    var shBlur = 28 + (1 - rest) * 30;
+    lcSet(lcLast, 'textShadow',
+      shOffX.toFixed(1) + 'px ' + shOffY.toFixed(1) + 'px 0 #a30620, 0 0 ' +
+      shBlur.toFixed(1) + 'px rgba(227,8,43,0.5)');
+  } else {
+    lcSet(lcLast, 'textShadow', '3px 4px 0 #a30620, 0 0 28px rgba(227,8,43,0.5)');
   }
 
-  setInterval(frame, FRAME_MS);
-  frame();
-})();
+  function beat(off, per){ if(per==null) per=7; var phase = ((t - off) % per + per) % per; return Math.max(0, 1 - phase * 4); }
+  var reflash = Math.max(
+    beat(5),  beat(12), beat(19), beat(26), beat(33),
+    beat(46), beat(53), beat(60), beat(67), beat(74),
+    beat(86), beat(93), beat(100), beat(107), beat(114)
+  );
+  var heroFlash = big > 0.92 ? Math.min(1, (big - 0.92) * 12) : 0;
+  lcSet(lcFlash, 'opacity', (Math.max(heroFlash, reflash * 0.65) * 0.55).toFixed(2));
+
+  for (var j = 0; j < lcFoodItemEls.length; j++) {
+    var stagger = j * 0.18;
+    var itemBig = lcHeroBigness(t - stagger);
+    lcSet(lcFoodItemEls[j], 'opacity', (1 - itemBig).toFixed(3));
+  }
+
+  lcSet(lcQr, 'opacity', rest.toFixed(3));
+  lcSet(lcQr, 'transform', 'translate3d(' + (80 * big).toFixed(1) + 'px,0,0)');
+}
+
+var lcDismissTimer = null, lcShownKey = null;
+
+function lcShow() {
+  lcEl.classList.add('show');
+  lcEl.setAttribute('aria-hidden', 'false');
+  lcT0 = Date.now() / 1000;
+  lcPrev = {}; // reset memoization on each show
+  if (lcInterval) clearInterval(lcInterval);
+  lcInterval = setInterval(lcFrame, 1000 / LC_FPS);
+  lcFrame();
+  if (lcDismissTimer) clearTimeout(lcDismissTimer);
+  lcDismissTimer = setTimeout(lcHide, LC_DURATION);
+}
+function lcHide() {
+  if (lcDismissTimer) { clearTimeout(lcDismissTimer); lcDismissTimer = null; }
+  lcEl.classList.remove('show');
+  lcEl.setAttribute('aria-hidden', 'true');
+  setTimeout(function() { if (lcInterval) { clearInterval(lcInterval); lcInterval = null; } }, 700);
+}
+
+function lcCheckSchedule() {
+  var now = new Date();
+  if (LC_DAYS.indexOf(now.getDay()) === -1) return;
+  if (now.getHours() !== LC_HOUR) return;
+  if (now.getMinutes() !== LC_MIN) return;
+  var key = now.toDateString();
+  if (lcShownKey === key) return;
+  lcShownKey = key;
+  lcShow();
+}
+setInterval(lcCheckSchedule, 10000);
+
+// Press "T" to toggle Last Call (testing)
+document.addEventListener("keydown", function(e) {
+  if (e.key !== "t" && e.key !== "T") return;
+  if (lcEl.classList.contains('show')) lcHide();
+  else lcShow();
+});
 </script>
 </body>
 </html>
