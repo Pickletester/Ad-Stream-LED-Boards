@@ -26,7 +26,7 @@
   .slide video { width: 845px; height: 314px; object-fit: cover; display: block; background: #000; }
   #error { display: none; color: #fff; font-family: sans-serif; font-size: 14px; text-align: center; padding-top: 140px; }
 
-  /* ─── Last Call overlay ────────────────────────────────── */
+  /* ─── Last Call overlay (display:none until armed) ───── */
   #lc {
     position: fixed; top: 0; left: 0;
     width: 845px; height: 314px;
@@ -37,8 +37,10 @@
     overflow: hidden;
     background: var(--black);
     color: var(--bone);
+    display: none;
   }
-  #lc.show { opacity: 1; }
+  #lc.armed { display: block; }
+  #lc.show  { opacity: 1; }
 
   #lc .bg-base {
     position: absolute; inset: 0;
@@ -185,7 +187,7 @@
 
 <div id="player"><div id="error">Could not load ads.json</div></div>
 
-<!-- ─── Last Call overlay (hidden until 7:30) ─── -->
+<!-- Last Call overlay (display:none until armed by JS) -->
 <div id="lc" aria-hidden="true">
   <div class="bg-base"></div>
   <div class="bg-halftone"></div>
@@ -219,7 +221,7 @@
 
 <script>
 /* ════════════════════════════════════════════════════════════════════
-   Ad player — slideshow from ads.json (untouched logic from before)
+   Ad player — slideshow from ads.json
    ════════════════════════════════════════════════════════════════════ */
 var ADS_FOLDER = "ads/";
 var DEFAULT_IMAGE_DURATION = 10;
@@ -399,34 +401,34 @@ function loadAds() {
 loadAds();
 
 /* ════════════════════════════════════════════════════════════════════
-   Last Call overlay — vanilla, inline, GPU-accelerated
-   Schedule: 7:30 PM Tue–Sat, 10 minutes
-   Test:     press "T" to toggle
+   Last Call overlay — display:none until 7:30 PM Tue–Sat (10 min)
    ════════════════════════════════════════════════════════════════════ */
-var LC_HOUR     = 19;             // 7 PM
-var LC_MIN      = 30;             // :30
-var LC_DURATION = 10 * 60 * 1000; // 10 minutes
-var LC_DAYS     = [2, 3, 4, 5, 6]; // Tue=2 ... Sat=6
+var LC_HOUR     = 19;
+var LC_MIN      = 30;
+var LC_DURATION = 10 * 60 * 1000;
+var LC_DAYS     = [2, 3, 4, 5, 6];
 var LC_W = 845, LC_H = 314, LC_LOOP = 120, LC_FPS = 30;
 
-var lcEl       = document.getElementById('lc');
-var lcBrand    = document.getElementById('lcBrand');
-var lcHead     = document.getElementById('lcHead');
-var lcLast     = document.getElementById('lcWLast');
-var lcCall     = document.getElementById('lcWCall');
-var lcFlash    = document.getElementById('lcFlash');
-var lcQr       = document.getElementById('lcQr');
-var lcFoodEl   = document.getElementById('lcFood');
-var lcQrImg    = document.getElementById('lcQrImg');
-var lcLogoImg  = document.getElementById('lcLogoImg');
+var lcEl         = document.getElementById('lc');
+var lcBrand      = document.getElementById('lcBrand');
+var lcHead       = document.getElementById('lcHead');
+var lcLast       = document.getElementById('lcWLast');
+var lcCall       = document.getElementById('lcWCall');
+var lcFlash      = document.getElementById('lcFlash');
+var lcQr         = document.getElementById('lcQr');
+var lcFoodEl     = document.getElementById('lcFood');
+var lcQrImg      = document.getElementById('lcQrImg');
+var lcLogoImg    = document.getElementById('lcLogoImg');
 var lcQrFallback = document.getElementById('lcQrFallback');
 
-// Image watchdog: retry on error + poll for silent hangs + text fallback
+// Image watchdog — only polls while overlay is armed
+var lcArmed = false;
 function lcWatchImage(img, fallbackEl) {
   if (!img) return;
   var base = img.src.split('?')[0];
   function reload() { img.src = base + '?r=' + Date.now(); }
   function check() {
+    if (!lcArmed) return;
     if (img.complete && img.naturalWidth > 0) {
       if (fallbackEl) fallbackEl.style.display = 'none';
       return;
@@ -437,15 +439,13 @@ function lcWatchImage(img, fallbackEl) {
   img.addEventListener('load', function(){ if (fallbackEl) fallbackEl.style.display = 'none'; });
   img.addEventListener('error', function(){
     if (fallbackEl) fallbackEl.style.display = 'flex';
-    setTimeout(reload, 3000);
+    if (lcArmed) setTimeout(reload, 3000);
   });
-  setTimeout(check, 1500);
   setInterval(check, 5000);
 }
 lcWatchImage(lcQrImg, lcQrFallback);
 lcWatchImage(lcLogoImg, null);
 
-// Food icons (inline SVG)
 var LC_ICONS = {
   burger: '<svg width="44" height="44" viewBox="0 0 44 44">'+
     '<path d="M6 19 Q6 8 22 8 Q38 8 38 19 Z" fill="#e6b34d"/>'+
@@ -543,7 +543,6 @@ function lcHeroBigness(t) {
   return max;
 }
 
-// Memoized style writes
 var lcPrev = {};
 function lcSet(el, prop, v) {
   var key = el._id + ':' + prop;
@@ -555,7 +554,8 @@ lcBrand._id = 'b'; lcHead._id = 'h'; lcLast._id = 'wL';
 lcCall._id = 'wC'; lcFlash._id = 'f'; lcQr._id = 'q';
 for (var k = 0; k < lcFoodItemEls.length; k++) lcFoodItemEls[k]._id = 'i' + k;
 
-var lcInterval = null, lcT0 = 0;
+var lcInterval = null, lcT0 = 0, lcDismissTimer = null, lcShownKey = null;
+
 function lcFrame() {
   var t = ((Date.now() / 1000 - lcT0) % LC_LOOP + LC_LOOP) % LC_LOOP;
   var big = lcHeroBigness(t), rest = 1 - big;
@@ -613,24 +613,32 @@ function lcFrame() {
   lcSet(lcQr, 'transform', 'translate3d(' + (80 * big).toFixed(1) + 'px,0,0)');
 }
 
-var lcDismissTimer = null, lcShownKey = null;
-
 function lcShow() {
-  lcEl.classList.add('show');
+  lcArmed = true;
+  lcEl.classList.add('armed');
   lcEl.setAttribute('aria-hidden', 'false');
-  lcT0 = Date.now() / 1000;
-  lcPrev = {}; // reset memoization on each show
-  if (lcInterval) clearInterval(lcInterval);
-  lcInterval = setInterval(lcFrame, 1000 / LC_FPS);
-  lcFrame();
-  if (lcDismissTimer) clearTimeout(lcDismissTimer);
-  lcDismissTimer = setTimeout(lcHide, LC_DURATION);
+  void lcEl.offsetWidth; // force layout so the opacity transition runs
+  setTimeout(function() {
+    lcEl.classList.add('show');
+    lcT0 = Date.now() / 1000;
+    lcPrev = {};
+    if (lcInterval) clearInterval(lcInterval);
+    lcInterval = setInterval(lcFrame, 1000 / LC_FPS);
+    lcFrame();
+    if (lcDismissTimer) clearTimeout(lcDismissTimer);
+    lcDismissTimer = setTimeout(lcHide, LC_DURATION);
+  }, 50);
 }
+
 function lcHide() {
   if (lcDismissTimer) { clearTimeout(lcDismissTimer); lcDismissTimer = null; }
   lcEl.classList.remove('show');
   lcEl.setAttribute('aria-hidden', 'true');
-  setTimeout(function() { if (lcInterval) { clearInterval(lcInterval); lcInterval = null; } }, 700);
+  setTimeout(function() {
+    if (lcInterval) { clearInterval(lcInterval); lcInterval = null; }
+    lcEl.classList.remove('armed'); // fully unmount from rendering
+    lcArmed = false;
+  }, 700);
 }
 
 function lcCheckSchedule() {
