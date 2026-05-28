@@ -4,10 +4,14 @@
     { "file": "Comcast.jpg" },
     { "file": "dj.jpg" },
     { "file": "HowardHannah.jpg" },
-    { "file": "Itaily1.jpg" },
+    {
+      "rotate": true,
+      "files": ["Sardinia billboard.jpg", "Puglia Billboard.jpg"]
+    },
     { "file": "J.jpg" },
-    { "file": "LevelUp.jpg" },
-      {
+    "rotate": true,
+      "files": ["Jewelry p1.jpg", "Jewelry p2.jpg", "Jewelry p3.jpg"]
+      },
       "rotate": true,
       "files": ["EBER01.jpg", "EBER02.jpg", "EBER03.jpg", "EBER04.jpg","EBER05.jpg"]
     },
