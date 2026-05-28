@@ -9,11 +9,13 @@
       "files": ["Sardinia billboard.jpg", "Puglia Billboard.jpg"]
     },
     { "file": "J.jpg" },
-    "rotate": true,
-      "files": ["Jewelry p1.jpg", "Jewelry p2.jpg", "Jewelry p3.jpg"]
-      },
+    {
       "rotate": true,
-      "files": ["EBER01.jpg", "EBER02.jpg", "EBER03.jpg", "EBER04.jpg","EBER05.jpg"]
+      "files": ["Jewelry p1.jpg", "Jewelry p2.jpg", "Jewelry p3.jpg"]
+    },
+    {
+      "rotate": true,
+      "files": ["EBER01.jpg", "EBER02.jpg", "EBER03.jpg", "EBER04.jpg", "EBER05.jpg"]
     },
     { "file": "LDEK.jpg", "duration": 20 },
     { "file": "Lorenzi-15.jpg" },
@@ -23,7 +25,7 @@
       "rotate": true,
       "files": ["pisciottano.jpg", "pisciottanoad2.jpg", "pisciottanoad3.jpg"]
     },
-      {
+    {
       "rotate": true,
       "files": ["Salt of the Earth 1.jpg", "Salt of the Earth 2.jpg", "Salt of the Earth 3.jpg", "Salt of the Earth 4.jpg"]
     },
