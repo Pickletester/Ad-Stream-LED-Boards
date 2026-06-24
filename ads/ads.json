@@ -31,7 +31,10 @@
     },
     { "file": "Podiatry.jpg" },
     { "file": "GTQA.jpg", "duration": 30 },
-    { "file": "SantelAd.jpg" },
+    {
+      "rotate": true,
+      "files": ["Jason 1.jpg", "Jason 2.jpg", "Jason 3.jpg"]
+    },
     { "file": "SunChevy.jpg" },
     { "file": "jetseymikes1.jpg" },
     { "file": "bar.jpg" },
