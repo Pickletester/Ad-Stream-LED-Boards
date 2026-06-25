@@ -20,7 +20,7 @@
     { "file": "LDEK.jpg", "duration": 20 },
     { "file": "Lorenzi-15.jpg" },
     { "file": "Mission.jpg" },
-    { "courtcam.jpg", "duration": 20 },
+    { "file": "courtcam.jpg", "duration": 20 },
     { "file": "Pickleballlifeline.jpg" },
     {
       "rotate": true,
