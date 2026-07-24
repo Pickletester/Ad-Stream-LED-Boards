@@ -18,6 +18,7 @@
       "files": ["EBER01.jpg", "EBER02.jpg", "EBER03.jpg", "EBER04.jpg", "EBER05.jpg"]
     },
     { "file": "Lorenzi-15.jpg", "duration": 30 },
+    { "file": "tristate levelup.jpg", "duration": 30 },
     { "file": "Mission.jpg" },
     { "file": "courtcam.jpg", "duration": 20 },
     { "file": "Pickleballlifeline.jpg" },
