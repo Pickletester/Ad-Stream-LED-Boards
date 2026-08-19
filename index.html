@@ -18,64 +18,160 @@
   .slide img { width: 845px; height: 314px; object-fit: cover; display: block; }
   .slide video { width: 845px; height: 314px; object-fit: cover; display: block; background: #000; }
   #error { display: none; color: #fff; font-family: sans-serif; font-size: 14px; text-align: center; padding-top: 140px; }
+  /* Camera beacon — 8px, top-right. Invisible from the court, readable from a ceiling cam. */
+  #beacon {
+    position: absolute; top: 0; right: 0;
+    width: 8px; height: 8px;
+    display: none;
+    z-index: 9999;
+  }
 </style>
 </head>
 <body>
 <div id="player">
   <div id="error">Could not load ads.json</div>
+  <div id="beacon"></div>
 </div>
 <script>
+(function() {
+"use strict";
+
+// ═══════════════════════════════════════════════════════════════════
+//  CONFIG — the only block you should need to edit per board
+// ═══════════════════════════════════════════════════════════════════
+var BOARD_ID = 1;              // CHANGE PER BOARD (1-16)
+
 var ADS_FOLDER = "ads/";
 var DEFAULT_IMAGE_DURATION = 10;
 var LOAD_TIMEOUT_MS = 8000;
 var PRELOAD_AHEAD = 2;
 
-// --- Reconnect / watchdog settings ---
-var WATCHDOG_INTERVAL    = 10000;  // check every 10s
-var WATCHDOG_MAX_STUCK   = 30000;  // if no advance in 30s, force recovery
-var HARD_RELOAD_INTERVAL = 4 * 60 * 60 * 1000; // hard reload every 4 hours
+// Health / recovery
+var WATCHDOG_INTERVAL  = 10000;   // check every 10s
+var WATCHDOG_MAX_STUCK = 30000;   // no advance in 30s -> recover
+var SECONDARY_STUCK_MS = 45000;   // backstop if the watchdog itself dies
 
-// FIX 1: Cache ads.json for this many seconds — all boards within the same
-// bucket share one Cloudflare cache hit instead of busting it every request.
-var ADS_JSON_CACHE_BUCKET_SECONDS = 60;
+// ads.json refresh. Was a one-shot setTimeout at 4h — now a real interval.
+var ADS_REFRESH_MS = 15 * 60 * 1000;
+var ADS_JSON_CACHE_BUCKET_SECONDS = 60;   // all boards share one CF cache hit
 
-var player = document.getElementById("player");
+// Full page reload once nightly, when nobody is looking. Clears any
+// webview memory creep that a soft refresh can't touch. -1 disables.
+var NIGHTLY_RELOAD_HOUR = 4;
+
+// Clock sync across all 16 boards. Uses the server Date header (corrected
+// for CF cache Age) instead of trusting the Taurus RTC. false = use local clock.
+var USE_SERVER_TIME = true;
+var MAX_SANE_OFFSET_MS = 6 * 60 * 60 * 1000;  // ignore absurd corrections
+
+// Optional monitoring. Empty string = fully disabled, zero requests.
+var MONITOR_URL = "";          // e.g. "https://levelup-monitor.s-jackson.workers.dev/beat"
+var MONITOR_INTERVAL_MS = 60000;
+
+// Optional camera beacon for detecting a dark panel.
+var BEACON_ENABLED = false;
+
+// ═══════════════════════════════════════════════════════════════════
+
+var player  = document.getElementById("player");
 var errorEl = document.getElementById("error");
 
 var adList = [];
 var currentEl = null;
+var currentKey = null;          // "index:file" — guards against redundant re-renders
 var advanceTimer = null;
 var loadTimer = null;
+var watchdogTimer = null;
 var cycleLength = 0;
 var offsets = [];
 var imageCache = {};
-
-var lastAdvanceTime = Date.now();
-var watchdogTimer = null;
-
-// FIX 2: Track the last known ads.json content so silent refreshes
-// only rebuild state if the data actually changed.
 var lastAdsJson = null;
+var lastAdvanceTime = Date.now();
+var recoveries = 0;
+var lastError = null;
+var timeOffsetMs = 0;
 
+function log()  { if (window.console) console.log.apply(console, arguments); }
+function warn() { if (window.console) console.warn.apply(console, arguments); }
+
+// ─── Clock ──────────────────────────────────────────────────────────
+// Every slot boundary is derived from this, so all 16 boards flip in
+// lockstep as long as they agree on the time.
+function nowMs()  { return Date.now() + timeOffsetMs; }
+function nowSec() { return Math.floor(nowMs() / 1000); }
+
+function syncClock(xhr, requestSentAt) {
+  if (!USE_SERVER_TIME) return;
+  try {
+    var dateHeader = xhr.getResponseHeader("Date");
+    if (!dateHeader) return;
+    var serverMs = Date.parse(dateHeader);
+    if (isNaN(serverMs)) return;
+
+    // A cached ads.json carries the ORIGINAL Date header. Cloudflare sends
+    // Age telling us how stale it is — without this correction the clock
+    // would lag by up to a full cache bucket.
+    var age = parseInt(xhr.getResponseHeader("Age") || "0", 10);
+    if (!isNaN(age) && age > 0) serverMs += age * 1000;
+
+    // Date headers are whole seconds, so assume mid-second, and add half
+    // the round trip to account for flight time.
+    serverMs += 500 + Math.round((Date.now() - requestSentAt) / 2);
+
+    var offset = serverMs - Date.now();
+    if (Math.abs(offset) > MAX_SANE_OFFSET_MS) {
+      warn("Ignoring implausible clock offset:", offset);
+      return;
+    }
+    if (Math.abs(offset - timeOffsetMs) > 1000) {
+      log("Clock offset " + timeOffsetMs + "ms -> " + offset + "ms");
+      timeOffsetMs = offset;
+    }
+  } catch (e) { /* clock sync is best-effort, never fatal */ }
+}
+
+// ─── HTTP (XHR, not fetch — older Taurus webviews) ──────────────────
+function getJSON(url, timeoutMs, onOk, onFail) {
+  var xhr = new XMLHttpRequest();
+  var sentAt = Date.now();
+  var done = false;
+
+  xhr.open("GET", url, true);
+  xhr.timeout = timeoutMs;
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4 || done) return;
+    done = true;
+    if (xhr.status >= 200 && xhr.status < 300) {
+      syncClock(xhr, sentAt);
+      try { onOk(JSON.parse(xhr.responseText)); }
+      catch (e) { onFail("parse error"); }
+    } else {
+      onFail("HTTP " + xhr.status);
+    }
+  };
+  xhr.ontimeout = function() { if (!done) { done = true; onFail("timeout"); } };
+  xhr.onerror   = function() { if (!done) { done = true; onFail("network"); } };
+  xhr.send();
+}
+
+// ─── Ad list helpers ────────────────────────────────────────────────
 function isVideo(f) { return /\.(mp4|webm)$/i.test(f); }
 
 function getSlotDuration(item) {
   if (item.rotate) return item.duration || DEFAULT_IMAGE_DURATION;
-  return isVideo(item.file)
-    ? (item.duration || 30)
-    : (item.duration || DEFAULT_IMAGE_DURATION);
+  return isVideo(item.file) ? (item.duration || 30)
+                            : (item.duration || DEFAULT_IMAGE_DURATION);
 }
 
-function getRotateFile(item) {
-  var now = Math.floor(Date.now() / 1000);
-  var totalCycles = Math.floor(now / cycleLength);
-  var pick = totalCycles % item.files.length;
-  return item.files[pick];
+// Resolved for a SPECIFIC time, so preloads pick the file that will
+// actually be on screen rather than the one showing right now.
+function resolveFileAt(item, atSec) {
+  if (!item.rotate) return item.file;
+  if (!cycleLength) return item.files[0];
+  var cycle = Math.floor(atSec / cycleLength);
+  return item.files[((cycle % item.files.length) + item.files.length) % item.files.length];
 }
-
-function resolveFile(item) {
-  return item.rotate ? getRotateFile(item) : item.file;
-}
+function resolveFile(item) { return resolveFileAt(item, nowSec()); }
 
 function buildOffsets() {
   cycleLength = 0;
@@ -84,22 +180,29 @@ function buildOffsets() {
     offsets.push(cycleLength);
     cycleLength += getSlotDuration(adList[i]);
   }
+  if (cycleLength <= 0) cycleLength = DEFAULT_IMAGE_DURATION;
 }
 
 function getCurrentIndex() {
-  var pos = Math.floor(Date.now() / 1000) % cycleLength;
-  var idx = 0;
+  if (!adList.length || !cycleLength) return 0;
+  var pos = nowSec() % cycleLength;
   for (var i = offsets.length - 1; i >= 0; i--) {
-    if (pos >= offsets[i]) { idx = i; break; }
+    if (pos >= offsets[i]) return i;
   }
-  return idx;
+  return 0;
 }
 
 function getMsRemaining(index) {
-  var pos = Math.floor(Date.now() / 1000) % cycleLength;
-  var dur = getSlotDuration(adList[index]);
+  if (!cycleLength) return 1000;
+  var pos = nowSec() % cycleLength;
   var elapsed = pos - offsets[index];
-  return Math.max((dur - elapsed) * 1000, 500);
+  return Math.max((getSlotDuration(adList[index]) - elapsed) * 1000, 500);
+}
+
+function secondsUntil(index) {
+  if (!cycleLength) return 0;
+  var d = offsets[index] - (nowSec() % cycleLength);
+  return d < 0 ? d + cycleLength : d;
 }
 
 function clearTimers() {
@@ -107,20 +210,30 @@ function clearTimers() {
   if (loadTimer)    { clearTimeout(loadTimer);    loadTimer = null; }
 }
 
-// ─── Watchdog ──────────────────────────────────────────────────────────────
-function forceRecovery(reason) {
-  console.warn("Recovery triggered:", reason);
-  // FIX 3: Do NOT clear imageCache here — no reason to re-download all
-  // assets just because playback got stuck. Keep the cache intact.
-  clearTimers();
-  if (currentEl) {
-    var oldVid = currentEl.querySelector("video");
-    if (oldVid) { oldVid.pause(); oldVid.removeAttribute("src"); oldVid.load(); }
-    currentEl.remove();
-    currentEl = null;
+// Any .slide that isn't the live one is orphaned DOM. On a board running
+// 16h/day a few stragglers per hour add up.
+function pruneSlides() {
+  var slides = player.querySelectorAll(".slide");
+  for (var i = 0; i < slides.length; i++) {
+    if (slides[i] !== currentEl) {
+      var v = slides[i].querySelector("video");
+      if (v) { v.pause(); v.removeAttribute("src"); v.load(); }
+      if (slides[i].parentNode) slides[i].parentNode.removeChild(slides[i]);
+    }
   }
+}
+
+// ─── Recovery ───────────────────────────────────────────────────────
+function forceRecovery(reason) {
+  warn("Recovery:", reason);
+  recoveries++;
+  lastError = reason;
+  clearTimers();
+  currentEl = null;
+  currentKey = null;
+  pruneSlides();                 // imageCache deliberately preserved
   lastAdvanceTime = Date.now();
-  checkAndAdvance();
+  checkAndAdvance(true);
 }
 
 function startWatchdog() {
@@ -128,41 +241,38 @@ function startWatchdog() {
   watchdogTimer = setInterval(function() {
     var stuck = Date.now() - lastAdvanceTime;
     if (stuck > WATCHDOG_MAX_STUCK) {
-      forceRecovery("stuck for " + Math.round(stuck / 1000) + "s");
+      forceRecovery("stuck " + Math.round(stuck / 1000) + "s");
     }
   }, WATCHDOG_INTERVAL);
 }
 
-// ─── Visibility: recover immediately when screen wakes ─────────────────────
-document.addEventListener("visibilitychange", function() {
-  if (document.visibilityState === "visible" && adList.length) {
-    console.log("Tab became visible — re-syncing");
-    forceRecovery("visibilitychange");
-  }
-});
-
-// FIX 4: Instead of location.reload() every 4 hours (which re-fetches all
-// assets), just silently refresh ads.json data and only reload the page
-// if something truly unrecoverable has happened (e.g. adList is empty).
-setTimeout(function() {
-  console.log("Scheduled soft refresh of ads.json");
-  refreshAdsJson();
-}, HARD_RELOAD_INTERVAL);
-
-// ─── Heartbeat: secondary layer — if advanceTimer fires late or never ───────
+// Backstop in case the watchdog interval itself gets killed
 setInterval(function() {
   if (!adList.length) return;
-  var stuck = Date.now() - lastAdvanceTime;
-  if (stuck > 45000) {
-    forceRecovery("heartbeat secondary check");
+  if (Date.now() - lastAdvanceTime > SECONDARY_STUCK_MS) {
+    forceRecovery("secondary check");
   }
 }, 15000);
 
-// ─── Preload ────────────────────────────────────────────────────────────────
+document.addEventListener("visibilitychange", function() {
+  if (document.visibilityState === "visible" && adList.length) {
+    forceRecovery("visibilitychange");
+  }
+});
+window.addEventListener("online", function() {
+  log("Network back");
+  refreshAdsJson();
+  if (adList.length) forceRecovery("network restored");
+});
+window.addEventListener("pageshow", function(e) {
+  if (e.persisted && adList.length) forceRecovery("bfcache restore");
+});
+
+// ─── Preload ────────────────────────────────────────────────────────
 function preloadUpcoming(currentIndex) {
   for (var i = 1; i <= PRELOAD_AHEAD; i++) {
     var nextIdx = (currentIndex + i) % adList.length;
-    var file = resolveFile(adList[nextIdx]);
+    var file = resolveFileAt(adList[nextIdx], nowSec() + secondsUntil(nextIdx));
     if (!imageCache[file] && !isVideo(file)) {
       var img = new Image();
       img.src = ADS_FOLDER + encodeURIComponent(file);
@@ -173,32 +283,35 @@ function preloadUpcoming(currentIndex) {
 
 function getOrLoadImage(file, onLoad, onError) {
   var src = ADS_FOLDER + encodeURIComponent(file);
-  if (imageCache[file] && imageCache[file].complete && imageCache[file].naturalWidth > 0) {
-    onLoad(imageCache[file]);
-    return;
-  }
-  var img = imageCache[file] || new Image();
+  var cached = imageCache[file];
+  if (cached && cached.complete && cached.naturalWidth > 0) { onLoad(cached); return; }
+
+  var img = cached || new Image();
   imageCache[file] = img;
-  img.onload = function() { onLoad(img); };
+  img.onload  = function() { onLoad(img); };
   img.onerror = function() { delete imageCache[file]; onError(); };
   if (!img.src) img.src = src;
 }
 
-// ─── Show slide ─────────────────────────────────────────────────────────────
+// ─── Rendering ──────────────────────────────────────────────────────
 function showSlide(index) {
   clearTimers();
   lastAdvanceTime = Date.now();
 
   var item = adList[index];
+  if (!item) { advanceTimer = setTimeout(function(){ checkAndAdvance(true); }, 1000); return; }
+
   var file = resolveFile(item);
+  currentKey = index + ":" + file;
 
   if (isVideo(file)) {
     if (currentEl) {
       var oldVid = currentEl.querySelector("video");
       if (oldVid) { oldVid.pause(); oldVid.removeAttribute("src"); oldVid.load(); }
-      currentEl.remove();
+      if (currentEl.parentNode) currentEl.parentNode.removeChild(currentEl);
       currentEl = null;
     }
+    pruneSlides();
 
     var div = document.createElement("div");
     div.className = "slide";
@@ -206,174 +319,239 @@ function showSlide(index) {
     vid.src = ADS_FOLDER + encodeURIComponent(file);
     vid.muted = true;
     vid.playsInline = true;
+    vid.setAttribute("playsinline", "");
     vid.preload = "auto";
+    // Looping instead of advancing on "ended" — a video shorter than its
+    // declared slot used to fire "ended", re-enter the same slot, and
+    // restart in a tight loop. Advancing is now purely clock-driven.
+    vid.loop = true;
 
-    var vidLoadTimer = setTimeout(function() {
-      console.warn("Video load timeout:", file);
-      checkAndAdvance();
+    var vidTimer = setTimeout(function() {
+      warn("Video load timeout:", file);
+      lastError = "video timeout: " + file;
+      checkAndAdvance(true);
     }, LOAD_TIMEOUT_MS);
 
     vid.addEventListener("canplay", function() {
-      clearTimeout(vidLoadTimer);
+      clearTimeout(vidTimer);
       div.classList.add("visible");
-      vid.play().catch(function() { checkAndAdvance(); });
+      var p = vid.play();
+      if (p && p["catch"]) p["catch"](function() { checkAndAdvance(true); });
     });
-    vid.addEventListener("ended", checkAndAdvance);
     vid.addEventListener("error", function() {
-      clearTimeout(vidLoadTimer);
-      console.warn("Video error:", file);
-      checkAndAdvance();
+      clearTimeout(vidTimer);
+      warn("Video error:", file);
+      lastError = "video error: " + file;
+      checkAndAdvance(true);
     });
 
     div.appendChild(vid);
     player.appendChild(div);
     currentEl = div;
     preloadUpcoming(index);
-    advanceTimer = setTimeout(checkAndAdvance, getMsRemaining(index) + 500);
-
-  } else {
-    loadTimer = setTimeout(function() {
-      console.warn("Image load timeout:", file);
-      delete imageCache[file];
-      checkAndAdvance();
-    }, LOAD_TIMEOUT_MS);
-
-    getOrLoadImage(file,
-      function(img) {
-        clearTimeout(loadTimer);
-        loadTimer = null;
-
-        var div = document.createElement("div");
-        div.className = "slide";
-        var imgEl = document.createElement("img");
-        imgEl.src = img.src;
-        div.appendChild(imgEl);
-        player.appendChild(div);
-
-        requestAnimationFrame(function() {
-          requestAnimationFrame(function() {
-            div.classList.add("visible");
-          });
-        });
-
-        if (currentEl) {
-          var old = currentEl;
-          setTimeout(function() {
-            old.classList.remove("visible");
-            setTimeout(function() { old.remove(); }, 350);
-          }, 50);
-        }
-
-        currentEl = div;
-        preloadUpcoming(index);
-        advanceTimer = setTimeout(checkAndAdvance, getMsRemaining(index));
-      },
-      function() {
-        clearTimeout(loadTimer);
-        loadTimer = null;
-        console.warn("Image error:", file);
-        advanceTimer = setTimeout(checkAndAdvance, 500);
-      }
-    );
+    advanceTimer = setTimeout(function(){ checkAndAdvance(true); }, getMsRemaining(index));
+    return;
   }
+
+  loadTimer = setTimeout(function() {
+    warn("Image load timeout:", file);
+    lastError = "image timeout: " + file;
+    delete imageCache[file];
+    checkAndAdvance(true);
+  }, LOAD_TIMEOUT_MS);
+
+  getOrLoadImage(file, function(img) {
+    clearTimeout(loadTimer); loadTimer = null;
+
+    var div = document.createElement("div");
+    div.className = "slide";
+    var imgEl = document.createElement("img");
+    imgEl.src = img.src;
+    div.appendChild(imgEl);
+    player.appendChild(div);
+
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() { div.classList.add("visible"); });
+    });
+
+    if (currentEl) {
+      var old = currentEl;
+      setTimeout(function() {
+        old.classList.remove("visible");
+        setTimeout(function() {
+          if (old.parentNode) old.parentNode.removeChild(old);
+        }, 350);
+      }, 50);
+    }
+
+    currentEl = div;
+    preloadUpcoming(index);
+    advanceTimer = setTimeout(function(){ checkAndAdvance(true); }, getMsRemaining(index));
+
+  }, function() {
+    clearTimeout(loadTimer); loadTimer = null;
+    warn("Image error:", file);
+    lastError = "image error: " + file;
+    advanceTimer = setTimeout(function(){ checkAndAdvance(true); }, 500);
+  });
 }
 
-function checkAndAdvance() {
+// force=false means "only re-render if the slot actually changed". Timers
+// that fire a few ms early used to re-render the same slide, restarting
+// the fade and flashing the board.
+function checkAndAdvance(force) {
   clearTimers();
-  showSlide(getCurrentIndex());
+  if (!adList.length) return;
+
+  var index = getCurrentIndex();
+  var key = index + ":" + resolveFile(adList[index]);
+
+  if (!force && key === currentKey && currentEl) {
+    lastAdvanceTime = Date.now();
+    advanceTimer = setTimeout(function(){ checkAndAdvance(true); }, getMsRemaining(index));
+    return;
+  }
+  showSlide(index);
 }
 
-// ─── ads.json fetch with time-bucketed cache key ─────────────────────────
-// FIX 1 (implementation): All boards within the same 60-second window
-// send the exact same URL, so Cloudflare serves it from cache after
-// the first hit. No more per-request cache busting.
+// ─── ads.json ───────────────────────────────────────────────────────
 function getAdsCacheKey() {
   return Math.floor(Date.now() / (ADS_JSON_CACHE_BUCKET_SECONDS * 1000));
 }
+function adsUrl() { return "ads/ads.json?v=" + getAdsCacheKey(); }
 
-// FIX 4 (implementation): Silent background refresh — only rebuilds
-// state if ads actually changed. Never does a full page reload unless
-// adList is somehow empty after a fetch.
+function applyAdsData(data) {
+  var newJson = JSON.stringify(data.ads);
+  if (newJson === lastAdsJson) return false;
+
+  log("ads.json changed, rebuilding");
+  lastAdsJson = newJson;
+  adList = data.ads;
+  buildOffsets();
+
+  var active = {};
+  for (var i = 0; i < adList.length; i++) {
+    var files = adList[i].rotate ? adList[i].files : [adList[i].file];
+    for (var j = 0; j < files.length; j++) active[files[j]] = true;
+  }
+  var keys = Object.keys(imageCache);
+  for (var k = 0; k < keys.length; k++) {
+    if (!active[keys[k]]) delete imageCache[keys[k]];
+  }
+  return true;
+}
+
 function refreshAdsJson() {
-  fetch("ads/ads.json?v=" + getAdsCacheKey())
-    .then(function(r) { if (!r.ok) throw new Error("not found"); return r.json(); })
-    .then(function(data) {
-      if (!data.ads || !data.ads.length) return; // nothing useful, keep running
-      var newJson = JSON.stringify(data.ads);
-      if (newJson === lastAdsJson) {
-        console.log("ads.json unchanged, skipping rebuild");
+  getJSON(adsUrl(), 8000, function(data) {
+    if (!data.ads || !data.ads.length) return;   // keep playing what we have
+    if (applyAdsData(data)) checkAndAdvance(true);
+  }, function(err) {
+    warn("ads.json refresh failed (non-fatal):", err);
+  });
+}
+setInterval(refreshAdsJson, ADS_REFRESH_MS);
+
+function loadAds() {
+  getJSON(adsUrl(), 8000, function(data) {
+    if (!data.ads || !data.ads.length) { scheduleRetry("empty"); return; }
+    loadAds._retryDelay = null;
+    applyAdsData(data);
+    errorEl.style.display = "none";
+    lastError = null;
+
+    var started = false;
+    function tryStart() {
+      if (started) return;
+      started = true;
+      // Align the first flip to a whole second so boards start in phase
+      setTimeout(function() {
+        checkAndAdvance(true);
+        startWatchdog();
+      }, 1000 - (nowMs() % 1000));
+    }
+
+    var loaded = 0;
+    var current = getCurrentIndex();
+    adList.forEach(function(ad, i) {
+      var file = resolveFile(ad);
+      if (isVideo(file)) {
+        loaded++;
+        if (loaded === adList.length) tryStart();
         return;
       }
-      console.log("ads.json changed, rebuilding");
-      lastAdsJson = newJson;
-      adList = data.ads;
-      buildOffsets();
-      // Invalidate cache entries for files no longer in the ad list
-      var activeFiles = {};
-      adList.forEach(function(ad) {
-        var files = ad.rotate ? ad.files : [ad.file];
-        files.forEach(function(f) { activeFiles[f] = true; });
-      });
-      Object.keys(imageCache).forEach(function(f) {
-        if (!activeFiles[f]) delete imageCache[f];
-      });
-    })
-    .catch(function(err) {
-      console.warn("ads.json refresh failed (non-fatal):", err);
-      // Don't retry aggressively here — loadAds retry loop handles initial load.
-      // For background refresh failures just let the next scheduled refresh try.
+      var img = new Image();
+      img.onload = img.onerror = function() {
+        loaded++;
+        if (i === current || loaded === adList.length) tryStart();
+      };
+      img.src = ADS_FOLDER + encodeURIComponent(file);
+      imageCache[file] = img;
     });
+
+    setTimeout(tryStart, 3000);   // never block on a slow asset
+
+  }, function(err) { scheduleRetry(err); });
 }
 
-// ─── Init: fetch ads.json, retry on failure ──────────────────────────────
-function loadAds() {
-  fetch("ads/ads.json?v=" + getAdsCacheKey())
-    .then(function(r) { if (!r.ok) throw new Error("not found"); return r.json(); })
-    .then(function(data) {
-      if (!data.ads || !data.ads.length) throw new Error("empty");
-      lastAdsJson = JSON.stringify(data.ads);
-      adList = data.ads;
-      buildOffsets();
-      errorEl.style.display = "none";
-
-      var started = false;
-      function tryStart() {
-        if (started) return;
-        started = true;
-        var msUntilNextSecond = 1000 - (Date.now() % 1000);
-        setTimeout(function() {
-          checkAndAdvance();
-          startWatchdog();
-        }, msUntilNextSecond);
-      }
-
-      var loaded = 0;
-      adList.forEach(function(ad, i) {
-        var file = resolveFile(ad);
-        if (isVideo(file)) { loaded++; if (loaded === adList.length) tryStart(); return; }
-        var img = new Image();
-        img.onload = img.onerror = function() {
-          loaded++;
-          if (i === getCurrentIndex() || loaded === adList.length) tryStart();
-        };
-        img.src = ADS_FOLDER + encodeURIComponent(file);
-        imageCache[file] = img;
-      });
-
-      setTimeout(tryStart, 3000);
-    })
-    .catch(function(err) {
-      console.error("ads.json load failed:", err);
-      errorEl.style.display = "block";
-      // FIX 5: Back off retry on repeated failure instead of hammering
-      // every 15s forever. 15s → 30s → 60s → 60s cap.
-      var retryDelay = (loadAds._retryDelay = Math.min((loadAds._retryDelay || 15000) * 2, 60000));
-      console.log("Retrying ads.json in " + retryDelay / 1000 + "s");
-      setTimeout(loadAds, retryDelay);
-    });
+function scheduleRetry(err) {
+  warn("ads.json load failed:", err);
+  lastError = "ads.json: " + err;
+  errorEl.style.display = "block";
+  var delay = loadAds._retryDelay = Math.min((loadAds._retryDelay || 7500) * 2, 60000);
+  log("Retrying ads.json in " + (delay / 1000) + "s");
+  setTimeout(loadAds, delay);
 }
 
+// ─── Nightly reload ─────────────────────────────────────────────────
+function scheduleNightlyReload() {
+  if (NIGHTLY_RELOAD_HOUR < 0) return;
+  var now = new Date(nowMs());
+  var target = new Date(now.getTime());
+  target.setHours(NIGHTLY_RELOAD_HOUR, 0, 0, 0);
+  if (target <= now) target.setDate(target.getDate() + 1);
+  var ms = target.getTime() - now.getTime();
+  log("Nightly reload in " + Math.round(ms / 3600000) + "h");
+  setTimeout(function() { location.reload(); }, ms);
+}
+
+// ─── Monitoring ─────────────────────────────────────────────────────
+function beat() {
+  if (!MONITOR_URL) return;
+  try {
+    var idx = adList.length ? getCurrentIndex() : -1;
+    var payload = JSON.stringify({
+      board: BOARD_ID,
+      layer: "ads",
+      ts: nowMs(),
+      stuckMs: Date.now() - lastAdvanceTime,
+      slide: idx >= 0 ? resolveFile(adList[idx]) : null,
+      ads: adList.length,
+      recoveries: recoveries,
+      clockOffsetMs: timeOffsetMs,
+      lastError: lastError
+    });
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", MONITOR_URL, true);
+    xhr.setRequestHeader("Content-Type", "text/plain");  // avoids CORS preflight
+    xhr.send(payload);
+  } catch (e) { /* monitoring must never break playback */ }
+}
+if (MONITOR_URL) setInterval(beat, MONITOR_INTERVAL_MS);
+
+// ─── Camera beacon ──────────────────────────────────────────────────
+if (BEACON_ENABLED) {
+  var beaconEl = document.getElementById("beacon");
+  beaconEl.style.display = "block";
+  setInterval(function() {
+    beaconEl.style.background = "hsl(" + ((nowMs() / 50) % 360) + ",100%,50%)";
+  }, 100);
+}
+
+// ─── Init ───────────────────────────────────────────────────────────
 loadAds();
+scheduleNightlyReload();
+
+})();
 </script>
 </body>
 </html>
