@@ -33,7 +33,7 @@
     { "file": "GTQA.jpg", "duration": 30 },
     {
       "rotate": true,
-      "files": ["Jason 1.jpg", "Jason 2.jpg", "Jason 3.jpg"]
+      "files": ["Jason 1.jpg", "Jason 2.jpg", "Jason 3.jpg", "Jason 4.jpg"]
     },
     { "file": "SunChevy.jpg" },
     { "file": "Phil Law.jpg" },
