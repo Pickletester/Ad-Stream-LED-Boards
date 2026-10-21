@@ -1,7 +1,8 @@
 {
   "ads": [
     {
-      "file": "Applebox.jpg"
+      "file": "Applebox.jpg",
+      "duration": 11
     },
     {
       "file": "Comcast.jpg"
@@ -58,7 +59,7 @@
     {
       "rotate": true,
       "files": [
-        "pisciottano.jpg .jpg",
+        "pisciottano.jpg",
         "pisciottanoad2.jpg",
         "pisciottanoad3.jpg"
       ]
