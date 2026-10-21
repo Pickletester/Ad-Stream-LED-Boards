@@ -61,7 +61,8 @@
     },
     {
       "file": "Lorenzi-15.jpg",
-      "duration": 30
+      "duration": 30,
+      "until": "2026-11-01"
     },
     {
       "file": "Mission.jpg"
