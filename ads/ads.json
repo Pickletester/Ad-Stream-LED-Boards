@@ -1,46 +1,111 @@
 {
   "ads": [
-    { "file": "Applebox.jpg" },
-    { "file": "Comcast.jpg" },
-    { "file": "dj.jpg" },
-    { "file": "HowardHannah.jpg" },
     {
-      "rotate": true,
-      "files": ["Sardinia billboard.jpg", "Puglia Billboard.jpg"]
-    },
-    { "file": "J.jpg" },
-    {
-      "rotate": true,
-      "files": ["Jewelry p1.jpg", "Jewelry p2.jpg", "Jewelry p3.jpg", "Jewelry p4.jpg"]
+      "file": "Applebox.jpg"
     },
     {
-      "rotate": true,
-      "files": ["EBER01.jpg", "EBER02.jpg", "EBER03.jpg", "EBER04.jpg", "EBER05.jpg"]
+      "file": "Comcast.jpg"
     },
-    { "file": "Lorenzi-15.jpg", "duration": 30 },
-    { "file": "Mission.jpg" },
-    { "file": "courtcam.jpg", "duration": 20 },
-    { "file": "Pickleballlifeline.jpg" },
     {
-      "rotate": true,
-      "files": ["pisciottano.jpg", "pisciottanoad2.jpg", "pisciottanoad3.jpg"]
+      "file": "dj.jpg"
+    },
+    {
+      "file": "HowardHannah.jpg"
     },
     {
       "rotate": true,
-      "files": ["Salt of the Earth 1.jpg", "Salt of the Earth 2.jpg", "Salt of the Earth 3.jpg", "Salt of the Earth 4.jpg"]
+      "files": [
+        "Sardinia billboard.jpg",
+        "Puglia Billboard.jpg"
+      ]
     },
-    { "file": "Podiatry.jpg" },
-    { "file": "GTQA.jpg", "duration": 30 },
+    {
+      "file": "J.jpg"
+    },
     {
       "rotate": true,
-      "files": ["Jason 1.jpg", "Jason 2.jpg"]
+      "files": [
+        "Jewelry p1.jpg",
+        "Jewelry p2.jpg",
+        "Jewelry p3.jpg",
+        "Jewelry p4.jpg"
+      ]
     },
-    { "file": "SunChevy.jpg" },
-    { "file": "Phil Law.jpg" },
-    { "file": "Chevy 2.jpg" },
-    { "file": "Closetsby Design.jpg" },
-    { "file": "jetseymikes1.jpg" },
-    { "file": "bar.jpg" },
-    { "file": "Verner.jpg" }
+    {
+      "rotate": true,
+      "files": [
+        "EBER01.jpg",
+        "EBER02.jpg",
+        "EBER03.jpg",
+        "EBER04.jpg",
+        "EBER05.jpg"
+      ]
+    },
+    {
+      "file": "Lorenzi-15.jpg",
+      "duration": 30
+    },
+    {
+      "file": "Mission.jpg"
+    },
+    {
+      "file": "courtcam.jpg",
+      "duration": 20
+    },
+    {
+      "file": "Pickleballlifeline.jpg"
+    },
+    {
+      "rotate": true,
+      "files": [
+        "pisciottano.jpg",
+        "pisciottanoad2.jpg",
+        "pisciottanoad3.jpg"
+      ]
+    },
+    {
+      "rotate": true,
+      "files": [
+        "Salt of the Earth 1.jpg",
+        "Salt of the Earth 2.jpg",
+        "Salt of the Earth 3.jpg",
+        "Salt of the Earth 4.jpg"
+      ]
+    },
+    {
+      "file": "Podiatry.jpg"
+    },
+    {
+      "file": "GTQA.jpg",
+      "duration": 30
+    },
+    {
+      "rotate": true,
+      "files": [
+        "Jason 1.jpg",
+        "Jason 2.jpg"
+      ]
+    },
+    {
+      "file": "SunChevy.jpg"
+    },
+    {
+      "file": "Phil Law.jpg"
+    },
+    {
+      "file": "Chevy 2.jpg"
+    },
+    {
+      "file": "Closetsby Design.jpg"
+    },
+    {
+      "file": "jetseymikes1.jpg"
+    },
+    {
+      "file": "bar.jpg"
+    },
+    {
+      "file": "Verner.jpg"
+    }
   ]
 }
