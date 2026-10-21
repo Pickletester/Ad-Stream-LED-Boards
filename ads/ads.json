@@ -1,7 +1,8 @@
 {
   "ads": [
     {
-      "file": "Applebox.jpg"
+      "file": "Applebox.jpg",
+      "until": "2026-11-01"
     },
     {
       "file": "Comcast.jpg"
@@ -61,8 +62,7 @@
     },
     {
       "file": "Lorenzi-15.jpg",
-      "duration": 30,
-      "until": "2026-11-01"
+      "duration": 30
     },
     {
       "file": "Mission.jpg"
