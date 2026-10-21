@@ -18,13 +18,35 @@
     {
       "rotate": true,
       "files": [
-        "Jewelry p1.jpg",
-        "Jewelry p2.jpg",
-        "Jewelry p3.jpg",
-        "Jewelry p4.jpg",
-        "1JAB.jpg",
-        "2JAB.jpg",
-        "3JAB.jpg"
+        {
+          "file": "Jewelry p1.jpg",
+          "from": "2026-11-01"
+        },
+        {
+          "file": "Jewelry p2.jpg",
+          "from": "2026-11-01"
+        },
+        {
+          "file": "Jewelry p3.jpg",
+          "from": "2026-11-01"
+        },
+        {
+          "file": "Jewelry p4.jpg",
+          "until": "2026-10-20",
+          "from": "2026-11-02"
+        },
+        {
+          "file": "1JAB.jpg",
+          "until": "2026-11-01"
+        },
+        {
+          "file": "2JAB.jpg",
+          "until": "2026-11-01"
+        },
+        {
+          "file": "3JAB.jpg",
+          "until": "2026-11-01"
+        }
       ]
     },
     {
@@ -78,8 +100,7 @@
     {
       "rotate": true,
       "files": [
-        "Jason 6.jpg",
-        "Jason 7.jpg"
+        "Jason 2.jpg"
       ]
     },
     {
