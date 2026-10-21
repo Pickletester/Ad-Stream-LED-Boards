@@ -157,6 +157,42 @@ function getJSON(url, timeoutMs, onOk, onFail) {
 // ─── Ad list helpers ────────────────────────────────────────────────
 function isVideo(f) { return /\.(mp4|webm)$/i.test(f); }
 
+// Optional "from" and "until" on an entry, as YYYY-MM-DD, both inclusive.
+// Dates use the board's local clock. Entries without them always run.
+function inDateWindow(item) {
+  if (!item.from && !item.until) return true;
+  var d = new Date();
+  var mm = ("0" + (d.getMonth() + 1)).slice(-2);
+  var dd = ("0" + d.getDate()).slice(-2);
+  var today = d.getFullYear() + "-" + mm + "-" + dd;
+  if (item.from && today < item.from) return false;
+  if (item.until && today > item.until) return false;
+  return true;
+}
+
+// Group members can be a plain file name or {file, from, until}. Members outside
+// their window are left out of the cycle; a group with none left is skipped.
+function activeEntries(ads) {
+  var out = [];
+  for (var i = 0; i < ads.length; i++) {
+    var e = ads[i];
+    if (!inDateWindow(e)) continue;
+    if (!e.rotate) { out.push(e); continue; }
+    var files = [];
+    for (var j = 0; j < e.files.length; j++) {
+      var m = e.files[j];
+      if (typeof m === "string") files.push(m);
+      else if (inDateWindow(m)) files.push(m.file);
+    }
+    if (!files.length) continue;
+    var copy = {};
+    for (var k in e) copy[k] = e[k];
+    copy.files = files;
+    out.push(copy);
+  }
+  return out;
+}
+
 function getSlotDuration(item) {
   if (item.rotate) return item.duration || DEFAULT_IMAGE_DURATION;
   return isVideo(item.file) ? (item.duration || 30)
@@ -421,12 +457,14 @@ function getAdsCacheKey() {
 function adsUrl() { return "ads/ads.json?v=" + getAdsCacheKey(); }
 
 function applyAdsData(data) {
-  var newJson = JSON.stringify(data.ads);
+  var active = activeEntries(data.ads);
+  if (!active.length) return false;   // nothing in its window: keep playing what we have
+  var newJson = JSON.stringify(active);
   if (newJson === lastAdsJson) return false;
 
   log("ads.json changed, rebuilding");
   lastAdsJson = newJson;
-  adList = data.ads;
+  adList = active;
   buildOffsets();
 
   var active = {};
@@ -454,6 +492,7 @@ setInterval(refreshAdsJson, ADS_REFRESH_MS);
 function loadAds() {
   getJSON(adsUrl(), 8000, function(data) {
     if (!data.ads || !data.ads.length) { scheduleRetry("empty"); return; }
+    if (!activeEntries(data.ads).length) { scheduleRetry("no ads in their date window"); return; }
     loadAds._retryDelay = null;
     applyAdsData(data);
     errorEl.style.display = "none";
