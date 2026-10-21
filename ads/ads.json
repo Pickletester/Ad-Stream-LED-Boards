@@ -13,13 +13,6 @@
       "file": "HowardHannah.jpg"
     },
     {
-      "rotate": true,
-      "files": [
-        "Sardinia billboard.jpg",
-        "Puglia Billboard.jpg"
-      ]
-    },
-    {
       "file": "J.jpg"
     },
     {
@@ -58,7 +51,7 @@
     {
       "rotate": true,
       "files": [
-        "pisciottano.jpg .jpg",
+        "pisciottano.jpg",
         "pisciottanoad2.jpg",
         "pisciottanoad3.jpg"
       ]
