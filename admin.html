@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MyPartySign Ads</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: #0d1117; color: #e6edf3;
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+      padding: 16px 24px; border-bottom: 1px solid #30363d; background: #161b22;
+    }
+    h1 { font-size: 18px; margin: 0; }
+    main { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+    section {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 16px; margin-bottom: 20px;
+    }
+    h2 { font-size: 15px; margin: 0 0 12px; }
+    button {
+      background: #21262d; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px;
+      padding: 6px 12px; font: inherit; cursor: pointer;
+    }
+    button:hover:not(:disabled) { background: #30363d; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    button.primary { background: #238636; border-color: #2ea043; color: #fff; }
+    button.primary:hover:not(:disabled) { background: #2ea043; }
+    button.danger { color: #ff7b72; }
+    input, select {
+      background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px;
+      padding: 6px 10px; font: inherit;
+    }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .step, .muted { color: #8b949e; font-size: 13px; }
+    .msg { font-size: 13px; min-height: 1.5em; }
+    .msg.ok { color: #3fb950; }
+    .msg.err { color: #ff7b72; }
+    .banner {
+      background: #3d2e00; border: 1px solid #9e6a03; color: #e3b341; border-radius: 6px;
+      padding: 10px 14px; margin-bottom: 16px; font-size: 13px;
+    }
+    .banner[hidden] { display: none; }
+    .badge {
+      display: inline-block; padding: 1px 8px; border-radius: 999px;
+      background: #1f6feb33; color: #79c0ff; font-size: 12px; white-space: nowrap;
+    }
+    .missing { background: #da363333; color: #ff7b72; }
+
+    /* Entries */
+    .entry {
+      border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin-bottom: 12px;
+      background: #0d1117;
+    }
+    .entry.group { border-color: #1f6feb; background: #1b2b45; }
+    .entryTop { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .entryTop .spacer { flex: 1; }
+    .single { display: flex; gap: 12px; align-items: center; }
+    .thumb {
+      width: 110px; height: 62px; object-fit: cover; border-radius: 4px; background: #000;
+      border: 1px solid #30363d; display: block; flex: none;
+    }
+    .strip { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+    .mini { position: relative; width: 96px; }
+    .mini .thumb { width: 96px; height: 54px; }
+    .minix {
+      position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; padding: 0;
+      border-radius: 50%; background: #da3633; border: none; color: #fff; font-size: 14px; line-height: 22px;
+    }
+    .minix:hover { background: #f85149; }
+    .fileName { font-size: 13px; word-break: break-all; margin-top: 4px; }
+
+    /* Ad picker grid */
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px; max-height: 320px; overflow: auto; padding: 2px;
+    }
+    .tile {
+      background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 6px;
+      cursor: pointer; text-align: left; color: inherit; font: inherit;
+    }
+    .tile:hover { border-color: #2ea043; }
+    .tile img, .tile video {
+      width: 100%; height: 76px; object-fit: cover; border-radius: 4px; background: #000; display: block;
+    }
+    .tile span {
+      display: block; font-size: 12px; margin-top: 4px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+    .dialogBack {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
+      display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10;
+    }
+    .dialogBack[hidden] { display: none; }
+    .dialog {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px;
+      width: min(760px, 100%); max-height: 85vh; display: flex; flex-direction: column; gap: 12px;
+    }
+    .dialog .grid { max-height: none; overflow: auto; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MyPartySign ads</h1>
+    <div>
+      <button id="reload">Reload from GitHub</button>
+      <button class="primary" id="download">Download ads.json</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="banner" id="dirty" hidden>
+      <b>Unsaved changes.</b> Click <b>Download ads.json</b>, then upload it to the <code>ads/</code> folder on GitHub, replacing the old one.
+    </div>
+
+    <section>
+      <h2>Add to the playlist</h2>
+      <p class="step">Click an ad to add it to the end as a single ad. To make a group that rotates, click <b>New group</b> first, then use the <b>+ Add ad</b> box in that group. New images: upload them to <code>ads/</code> on GitHub, then click <b>Reload from GitHub</b>.</p>
+      <div class="row" style="margin-bottom:12px">
+        <input id="search" type="search" placeholder="Search ads…" style="flex:1 1 260px" />
+        <button id="newGroup" class="primary">+ New group</button>
+        <span class="muted" id="adsInfo"></span>
+      </div>
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <section>
+      <h2>Playlist</h2>
+      <p class="step">Groups rotate together: each ad in a group plays in order, then the playlist moves on. Existing ads and groups are kept as they are.</p>
+      <div id="entries"></div>
+      <p class="muted" id="empty" style="display:none">The playlist is empty. Add an ad above.</p>
+    </section>
+
+    <p class="msg" id="msg"></p>
+  </main>
+
+  <div class="dialogBack" id="picker" hidden>
+    <div class="dialog">
+      <div class="row">
+        <b id="pickerTitle">Replace ad</b>
+        <span style="flex:1"></span>
+        <button id="pickerClose">Close</button>
+      </div>
+      <div class="grid" id="pickerGrid"></div>
+    </div>
+  </div>
+
+  <script>
+    const REPO = "Pickletester/Ad-Stream-LED-Boards";
+    const RAW = "https://raw.githubusercontent.com/" + REPO + "/main/";
+    const el = (id) => document.getElementById(id);
+
+    // state.data keeps every top-level key from ads.json; state.entries is the ads list.
+    const state = { data: { ads: [] }, entries: [], files: [], dirty: false, loading: false };
+
+    function setMsg(text, kind) {
+      const m = el("msg");
+      m.textContent = text;
+      m.className = "msg " + (kind || "");
+    }
+
+    function setDirty(value) {
+      state.dirty = value;
+      el("dirty").hidden = !value;
+    }
+
+    function isVideo(file) { return /\.(mp4|webm|mov)$/i.test(file); }
+    function isMedia(file) { return /\.(jpe?g|png|webp|gif|mp4|webm|mov)$/i.test(file); }
+    function mediaUrl(file) { return RAW + "ads/" + encodeURIComponent(file); }
+
+    function escapeHTML(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    function mediaHTML(file, cls) {
+      return isVideo(file)
+        ? '<video class="' + cls + '" muted src="' + mediaUrl(file) + '"></video>'
+        : '<img class="' + cls + '" src="' + mediaUrl(file) + '" alt="" />';
+    }
+
+    function isMissing(file) {
+      return state.files.length > 0 && !state.files.includes(file);
+    }
+
+    // Group numbers are counted from the top of the playlist.
+    function groupNumber(index) {
+      let n = 0;
+      for (let i = 0; i <= index; i++) if (state.entries[i].rotate) n++;
+      return n;
+    }
+
+    function render() {
+      const box = el("entries");
+      box.innerHTML = "";
+      el("empty").style.display = state.entries.length ? "none" : "block";
+
+      state.entries.forEach((entry, i) => {
+        const card = entry.rotate ? groupCard(entry, i) : singleCard(entry, i);
+        box.appendChild(card);
+      });
+      renderGrid();
+    }
+
+    function moveEntry(i, dir) {
+      const j = i + dir;
+      if (j < 0 || j >= state.entries.length) return;
+      [state.entries[i], state.entries[j]] = [state.entries[j], state.entries[i]];
+      setDirty(true);
+      render();
+    }
+
+    function removeEntry(i) {
+      state.entries.splice(i, 1);
+      setDirty(true);
+      render();
+    }
+
+    function durationInput(entry, placeholder) {
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = "1";
+      input.step = "1";
+      input.style.width = "90px";
+      input.placeholder = placeholder;
+      input.value = entry.duration || "";
+      input.title = "Seconds to show this entry (blank = default)";
+      input.addEventListener("change", () => {
+        const v = parseInt(input.value, 10);
+        if (v > 0) entry.duration = v;
+        else delete entry.duration;
+        setDirty(true);
+      });
+      return input;
+    }
+
+    function arrows(i) {
+      const wrap = document.createElement("span");
+      wrap.className = "row";
+      const up = document.createElement("button");
+      up.textContent = "↑";
+      up.disabled = i === 0;
+      up.addEventListener("click", () => moveEntry(i, -1));
+      const down = document.createElement("button");
+      down.textContent = "↓";
+      down.disabled = i === state.entries.length - 1;
+      down.addEventListener("click", () => moveEntry(i, 1));
+      const remove = document.createElement("button");
+      remove.className = "danger";
+      remove.textContent = "Remove";
+      remove.addEventListener("click", () => removeEntry(i));
+      wrap.append(up, down, remove);
+      return wrap;
+    }
+
+    function singleCard(entry, i) {
+      const card = document.createElement("div");
+      card.className = "entry";
+      const missing = isMissing(entry.file);
+
+      const body = document.createElement("div");
+      body.className = "single";
+      body.innerHTML = mediaHTML(entry.file, "thumb") +
+        '<div style="flex:1"><div class="fileName">' + escapeHTML(entry.file) + "</div>" +
+        (missing ? '<span class="badge missing">File not in ads/</span>' : "") + "</div>";
+
+      const thumb = body.querySelector(".thumb");
+      thumb.style.cursor = "pointer";
+      thumb.title = "Click to replace";
+      thumb.addEventListener("click", () => openPicker(entry));
+
+      const top = document.createElement("div");
+      top.className = "entryTop";
+      top.appendChild(document.createElement("span")).className = "spacer";
+      const secs = document.createElement("span");
+      secs.className = "muted";
+      secs.textContent = "Seconds:";
+      top.append(secs, durationInput(entry, "default"), arrows(i));
+
+      card.append(body, top);
+      return card;
+    }
+
+    function groupCard(entry, i) {
+      const card = document.createElement("div");
+      card.className = "entry group";
+      const n = groupNumber(i);
+
+      const top = document.createElement("div");
+      top.className = "entryTop";
+      top.innerHTML = '<span class="badge">Group ' + n + "</span>" +
+        '<span class="muted">' + entry.files.length + " ads, rotate in order</span>" +
+        '<span class="spacer"></span><span class="muted">Seconds each:</span>';
+      top.append(durationInput(entry, "default"), arrows(i));
+
+      const strip = document.createElement("div");
+      strip.className = "strip";
+      entry.files.forEach((file, fi) => {
+        const mini = document.createElement("div");
+        mini.className = "mini";
+        mini.title = file + (isMissing(file) ? " (not in ads/)" : " (click to replace)");
+        mini.innerHTML = mediaHTML(file, "thumb") +
+          '<div class="fileName">' + escapeHTML(file) + "</div>" +
+          (isMissing(file) ? '<span class="badge missing">Missing</span>' : "") +
+          '<button class="minix" title="Take out of group">×</button>';
+        mini.querySelector(".thumb").style.cursor = "pointer";
+        mini.querySelector(".thumb").addEventListener("click", () => openPicker(entry, fi));
+        mini.querySelector(".minix").addEventListener("click", () => {
+          entry.files.splice(fi, 1);
+          setDirty(true);
+          render();
+        });
+        strip.appendChild(mini);
+      });
+
+      const add = document.createElement("select");
+      add.appendChild(new Option("+ Add ad to this group…", ""));
+      state.files.forEach((name) => add.add(new Option(name, name)));
+      add.addEventListener("change", () => {
+        if (!add.value) return;
+        entry.files.push(add.value);
+        setDirty(true);
+        render();
+      });
+      strip.appendChild(add);
+
+      card.append(top, strip);
+      return card;
+    }
+
+    // Ad grid: click an ad to add it as a single entry.
+    function tileFor(name, onPick) {
+      const tile = document.createElement("button");
+      tile.className = "tile";
+      tile.title = name;
+      tile.innerHTML = mediaHTML(name, "") .replace('class=""', "") + "<span>" + escapeHTML(name) + "</span>";
+      tile.addEventListener("click", () => onPick(name));
+      return tile;
+    }
+
+    function renderGrid() {
+      const query = el("search").value.trim().toLowerCase();
+      const grid = el("grid");
+      grid.innerHTML = "";
+      state.files
+        .filter((name) => name.toLowerCase().includes(query))
+        .forEach((name) => {
+          grid.appendChild(tileFor(name, () => {
+            state.entries.push({ file: name });
+            setDirty(true);
+            render();
+            setMsg("Added " + name + " at the end. Click Download ads.json when you're done.", "ok");
+          }));
+        });
+      el("adsInfo").textContent = state.files.length + " ads in ads/";
+    }
+
+    // Replace an ad: a single entry, or one ad inside a group.
+    let pickerTarget = null;
+    function openPicker(entry, fileIndex) {
+      pickerTarget = { entry, fileIndex };
+      const current = fileIndex === undefined ? entry.file : entry.files[fileIndex];
+      el("pickerTitle").textContent = "Replace " + current;
+      const grid = el("pickerGrid");
+      grid.innerHTML = "";
+      state.files.forEach((name) => {
+        grid.appendChild(tileFor(name, (picked) => {
+          if (pickerTarget.fileIndex === undefined) pickerTarget.entry.file = picked;
+          else pickerTarget.entry.files[pickerTarget.fileIndex] = picked;
+          closePicker();
+          setDirty(true);
+          render();
+          setMsg("Replaced with " + picked + ". Click Download ads.json when you're done.", "ok");
+        }));
+      });
+      el("picker").hidden = false;
+    }
+
+    function closePicker() {
+      el("picker").hidden = true;
+      pickerTarget = null;
+    }
+
+    async function loadAds() {
+      try {
+        const res = await fetch("https://api.github.com/repos/" + REPO + "/contents/ads", { cache: "no-store" });
+        if (!res.ok) throw new Error("GitHub returned " + res.status);
+        const files = await res.json();
+        state.files = files
+          .filter((f) => f.type === "file" && isMedia(f.name))
+          .map((f) => f.name)
+          .sort((a, b) => a.localeCompare(b));
+      } catch (err) {
+        setMsg("Could not list ads/ (" + err.message + ").", "err");
+      }
+    }
+
+    async function loadPlaylist() {
+      try {
+        const res = await fetch(RAW + "ads/ads.json?t=" + Date.now(), { cache: "no-store" });
+        if (!res.ok) throw new Error("ads.json returned " + res.status);
+        const data = await res.json();
+        state.data = data;
+        state.entries = Array.isArray(data.ads) ? data.ads : [];
+        return true;
+      } catch (err) {
+        setMsg("Could not load ads.json (" + err.message + ").", "err");
+        return false;
+      }
+    }
+
+    async function reloadAll() {
+      setMsg("Loading…", "");
+      state.loading = true;
+      await loadAds();
+      const ok = await loadPlaylist();
+      state.loading = false;
+      render();
+      setDirty(false);
+      if (ok) setMsg("Loaded " + state.entries.length + " entries from GitHub.", "ok");
+    }
+
+    el("search").addEventListener("input", renderGrid);
+    el("newGroup").addEventListener("click", () => {
+      state.entries.push({ rotate: true, files: [] });
+      setDirty(true);
+      render();
+      setMsg("New group added at the end. Use its + Add ad box to fill it.", "ok");
+    });
+    el("reload").addEventListener("click", () => {
+      if (state.dirty && !confirm("Discard unsaved changes and reload from GitHub?")) return;
+      reloadAll();
+    });
+    el("pickerClose").addEventListener("click", closePicker);
+    el("picker").addEventListener("click", (e) => { if (e.target.id === "picker") closePicker(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePicker(); });
+    window.addEventListener("beforeunload", (e) => { if (state.dirty) e.preventDefault(); });
+
+    el("download").addEventListener("click", () => {
+      const out = { ...state.data, ads: state.entries };
+      const blob = new Blob([JSON.stringify(out, null, 2) + "\n"], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "ads.json";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      setDirty(false);
+      setMsg("Downloaded ads.json. Upload it to the ads/ folder on GitHub, replacing the old one.", "ok");
+    });
+
+    reloadAll();
+  </script>
+</body>
+</html>
