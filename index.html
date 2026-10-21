@@ -170,19 +170,19 @@ function inDateWindow(item) {
   return true;
 }
 
-// Group members can be a plain file name or {file, from, until}. Members outside
-// their window are left out of the cycle; a group with none left is skipped.
+// Group members can be a plain file name or {file, from, until, enabled}. Members that
+// are switched off or outside their window are left out; a group with none left is skipped.
 function activeEntries(ads) {
   var out = [];
   for (var i = 0; i < ads.length; i++) {
     var e = ads[i];
-    if (!inDateWindow(e)) continue;
+    if (e.enabled === false || !inDateWindow(e)) continue;
     if (!e.rotate) { out.push(e); continue; }
     var files = [];
     for (var j = 0; j < e.files.length; j++) {
       var m = e.files[j];
       if (typeof m === "string") files.push(m);
-      else if (inDateWindow(m)) files.push(m.file);
+      else if (m.enabled !== false && inDateWindow(m)) files.push(m.file);
     }
     if (!files.length) continue;
     var copy = {};
