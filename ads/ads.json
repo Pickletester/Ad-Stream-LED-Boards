@@ -58,7 +58,7 @@
     {
       "rotate": true,
       "files": [
-        "pisciottano.jpg",
+        "pisciottano.jpg .jpg",
         "pisciottanoad2.jpg",
         "pisciottanoad3.jpg"
       ]
@@ -82,8 +82,7 @@
     {
       "rotate": true,
       "files": [
-        "Jason 7.jpg",
-        "Jason 6.jpg"
+        "Jason 2.jpg"
       ]
     },
     {
