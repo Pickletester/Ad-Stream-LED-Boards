@@ -71,6 +71,12 @@ var MONITOR_INTERVAL_MS = 60000;
 // Optional camera beacon for detecting a dark panel.
 var BEACON_ENABLED = false;
 
+// Spotty-wifi protection.
+var LS_ADS_KEY = "levelup_ads_json";       // last good ads.json, kept on the device
+var PREFETCH_TIMEOUT_MS = 20000;           // per image, when warming every ad into memory
+var PREFETCH_RETRY_MS   = 60000;           // retry images that failed to download
+var RELOAD_RETRY_MS     = 15 * 60 * 1000;  // nightly reload waits for the network
+
 // ═══════════════════════════════════════════════════════════════════
 
 var player  = document.getElementById("player");
@@ -90,6 +96,9 @@ var lastAdvanceTime = Date.now();
 var recoveries = 0;
 var lastError = null;
 var timeOffsetMs = 0;
+var playing = false;            // true once the first slide has been scheduled
+var prefetchRun = 0;
+var prefetchRetryTimer = null;
 
 function log()  { if (window.console) console.log.apply(console, arguments); }
 function warn() { if (window.console) console.warn.apply(console, arguments); }
@@ -298,6 +307,7 @@ document.addEventListener("visibilitychange", function() {
 window.addEventListener("online", function() {
   log("Network back");
   refreshAdsJson();
+  prefetchAll();
   if (adList.length) forceRecovery("network restored");
 });
 window.addEventListener("pageshow", function(e) {
@@ -327,6 +337,87 @@ function getOrLoadImage(file, onLoad, onError) {
   img.onload  = function() { onLoad(img); };
   img.onerror = function() { delete imageCache[file]; onError(); };
   if (!img.src) img.src = src;
+}
+
+// ─── Saved copy of ads.json ─────────────────────────────────────────
+// Lets the board start from the last good ad list when ads.json can't be fetched.
+function saveAds(data) {
+  try { localStorage.setItem(LS_ADS_KEY, JSON.stringify({ t: Date.now(), data: data })); }
+  catch (e) { /* storage is best-effort */ }
+}
+function readSavedAds() {
+  try {
+    var o = JSON.parse(localStorage.getItem(LS_ADS_KEY) || "null");
+    if (o && o.data && o.data.ads && o.data.ads.length) return o.data;
+  } catch (e) {}
+  return null;
+}
+
+function isGoodImage(img) { return !!(img && img.complete && img.naturalWidth > 0); }
+
+// ─── Warm every ad into memory ──────────────────────────────────────
+// Downloads every active image (including every member of a rotating group)
+// once, one at a time, and keeps it. After that a wifi dip can't blank a slot,
+// because nothing on screen needs the network any more.
+function prefetchAll() {
+  var run = ++prefetchRun;
+  if (prefetchRetryTimer) { clearTimeout(prefetchRetryTimer); prefetchRetryTimer = null; }
+  var queue = [], seen = {}, failed = 0;
+  for (var i = 0; i < adList.length; i++) {
+    var files = adList[i].rotate ? adList[i].files : [adList[i].file];
+    for (var j = 0; j < files.length; j++) {
+      var f = files[j];
+      if (seen[f] || isVideo(f)) continue;
+      seen[f] = true;
+      var c = imageCache[f];
+      if (isGoodImage(c)) continue;                 // already in memory
+      if (c && !c.complete) continue;               // already downloading
+      queue.push(f);
+    }
+  }
+  function next() {
+    if (run !== prefetchRun) return;                // a newer run took over
+    if (!queue.length) {
+      if (failed) prefetchRetryTimer = setTimeout(prefetchAll, PREFETCH_RETRY_MS);
+      return;
+    }
+    var file = queue.shift();
+    if (isGoodImage(imageCache[file])) { next(); return; }
+    var img = new Image(), settled = false;
+    var timer = setTimeout(function() { finish(false); }, PREFETCH_TIMEOUT_MS);
+    function finish(ok) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (!ok) { failed++; if (imageCache[file] === img) delete imageCache[file]; }
+      next();
+    }
+    img.addEventListener("load",  function() { finish(true); });
+    img.addEventListener("error", function() { finish(false); });
+    imageCache[file] = img;
+    img.src = ADS_FOLDER + encodeURIComponent(file);
+  }
+  next();
+}
+
+// Something to show when the scheduled ad can't be loaded and the board
+// would otherwise be black: any ad that is already in memory.
+function showFallbackSlide() {
+  if (currentEl) return;
+  var keys = Object.keys(imageCache);
+  for (var i = 0; i < keys.length; i++) {
+    var img = imageCache[keys[i]];
+    if (!isGoodImage(img)) continue;
+    var div = document.createElement("div");
+    div.className = "slide visible";
+    var el = document.createElement("img");
+    el.src = img.src;
+    div.appendChild(el);
+    player.appendChild(div);
+    currentEl = div;
+    currentKey = null;
+    return;
+  }
 }
 
 // ─── Rendering ──────────────────────────────────────────────────────
@@ -393,6 +484,7 @@ function showSlide(index) {
     warn("Image load timeout:", file);
     lastError = "image timeout: " + file;
     delete imageCache[file];
+    showFallbackSlide();
     checkAndAdvance(true);
   }, LOAD_TIMEOUT_MS);
 
@@ -428,7 +520,9 @@ function showSlide(index) {
     clearTimeout(loadTimer); loadTimer = null;
     warn("Image error:", file);
     lastError = "image error: " + file;
-    advanceTimer = setTimeout(function(){ checkAndAdvance(true); }, 500);
+    showFallbackSlide();
+    // Was 500ms: with the wifi down that hammered a slow player twice a second.
+    advanceTimer = setTimeout(function(){ checkAndAdvance(true); }, 3000);
   });
 }
 
@@ -467,14 +561,14 @@ function applyAdsData(data) {
   adList = active;
   buildOffsets();
 
-  var active = {};
+  var keep = {};
   for (var i = 0; i < adList.length; i++) {
     var files = adList[i].rotate ? adList[i].files : [adList[i].file];
-    for (var j = 0; j < files.length; j++) active[files[j]] = true;
+    for (var j = 0; j < files.length; j++) keep[files[j]] = true;
   }
   var keys = Object.keys(imageCache);
   for (var k = 0; k < keys.length; k++) {
-    if (!active[keys[k]]) delete imageCache[keys[k]];
+    if (!keep[keys[k]]) delete imageCache[keys[k]];
   }
   return true;
 }
@@ -482,7 +576,8 @@ function applyAdsData(data) {
 function refreshAdsJson() {
   getJSON(adsUrl(), 8000, function(data) {
     if (!data.ads || !data.ads.length) return;   // keep playing what we have
-    if (applyAdsData(data)) checkAndAdvance(true);
+    saveAds(data);
+    if (applyAdsData(data)) { checkAndAdvance(true); prefetchAll(); }
   }, function(err) {
     warn("ads.json refresh failed (non-fatal):", err);
   });
@@ -494,9 +589,24 @@ function loadAds() {
     if (!data.ads || !data.ads.length) { scheduleRetry("empty"); return; }
     if (!activeEntries(data.ads).length) { scheduleRetry("no ads in their date window"); return; }
     loadAds._retryDelay = null;
+    saveAds(data);
+    lastError = null;
+    if (playing) {
+      // Already running from the saved copy: just switch to the fresh list.
+      errorEl.style.display = "none";
+      if (applyAdsData(data)) checkAndAdvance(true);
+      prefetchAll();
+      return;
+    }
+    startWith(data);
+  }, function(err) { scheduleRetry(err); });
+}
+
+// Begin playback from an ad list (fresh from the network, or the saved copy).
+function startWith(data) {
+    playing = true;
     applyAdsData(data);
     errorEl.style.display = "none";
-    lastError = null;
 
     var started = false;
     function tryStart() {
@@ -528,14 +638,18 @@ function loadAds() {
     });
 
     setTimeout(tryStart, 3000);   // never block on a slow asset
-
-  }, function(err) { scheduleRetry(err); });
+    setTimeout(prefetchAll, 4000);  // then warm every other ad in the background
 }
 
 function scheduleRetry(err) {
   warn("ads.json load failed:", err);
   lastError = "ads.json: " + err;
-  errorEl.style.display = "block";
+  if (!playing) {
+    // No network at start-up: play the last good ad list instead of an error.
+    var saved = readSavedAds();
+    if (saved && activeEntries(saved.ads).length) startWith(saved);
+  }
+  if (!playing) errorEl.style.display = "block";
   var delay = loadAds._retryDelay = Math.min((loadAds._retryDelay || 7500) * 2, 60000);
   log("Retrying ads.json in " + (delay / 1000) + "s");
   setTimeout(loadAds, delay);
@@ -550,7 +664,27 @@ function scheduleNightlyReload() {
   if (target <= now) target.setDate(target.getDate() + 1);
   var ms = target.getTime() - now.getTime();
   log("Nightly reload in " + Math.round(ms / 3600000) + "h");
-  setTimeout(function() { location.reload(); }, ms);
+  setTimeout(reloadWhenReachable, ms);
+}
+
+// A reload with the wifi down would leave the board on a dead page until
+// someone fixed it by hand. So ask the server first, and wait if it is silent.
+function reloadWhenReachable() {
+  var done = false;
+  function later() { if (done) return; done = true; setTimeout(reloadWhenReachable, RELOAD_RETRY_MS); }
+  try {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "index.html?probe=" + Date.now(), true);
+    xhr.timeout = 10000;
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4 || done) return;
+      if (xhr.status >= 200 && xhr.status < 300) { done = true; location.reload(); }
+      else later();
+    };
+    xhr.ontimeout = later;
+    xhr.onerror = later;
+    xhr.send();
+  } catch (e) { later(); }
 }
 
 // ─── Monitoring ─────────────────────────────────────────────────────
@@ -585,6 +719,50 @@ if (BEACON_ENABLED) {
     beaconEl.style.background = "hsl(" + ((nowMs() / 50) % 360) + ",100%,50%)";
   }, 100);
 }
+
+// ─── Offline copy of the page and ads (service worker) ──────────────
+// Lets the board start with no wifi at all. Ignored where unsupported.
+try {
+  if ("serviceWorker" in navigator) {
+    var swp = navigator.serviceWorker.register("sw.js");
+    if (swp && swp["catch"]) swp["catch"](function() {});
+  }
+} catch (e) {}
+
+// Add ?diag=1 to the board's URL to show what this player supports.
+try {
+  if (/[?&]diag=1\b/.test(location.search || "")) {
+    var diagBox = document.createElement("div");
+    diagBox.style.cssText = "position:absolute;top:4px;left:4px;z-index:20000;background:#000;color:#7CFC00;" +
+      "font:13px/1.4 monospace;padding:6px 10px;border:1px solid #7CFC00;white-space:pre-wrap;";
+    player.appendChild(diagBox);
+    var diagReport = function() {
+      var ua = navigator.userAgent || "", m = /Chrome\/(\d+)/.exec(ua);
+      var sw = ("serviceWorker" in navigator);
+      var ls = "no";
+      try { localStorage.setItem("levelup_diag", "1"); localStorage.removeItem("levelup_diag"); ls = "yes"; } catch (e) {}
+      var total = 0, good = 0, seen = {};
+      for (var i = 0; i < adList.length; i++) {
+        var files = adList[i].rotate ? adList[i].files : [adList[i].file];
+        for (var j = 0; j < files.length; j++) {
+          if (seen[files[j]]) continue;
+          seen[files[j]] = true; total++;
+          if (isGoodImage(imageCache[files[j]])) good++;
+        }
+      }
+      diagBox.textContent =
+        "BROWSER: " + (m ? "Chrome " + m[1] : "unknown") + "\n" +
+        "OFFLINE COPY SUPPORTED: " + (sw ? "yes" : "no") + "\n" +
+        "OFFLINE COPY ACTIVE: " + (sw && navigator.serviceWorker.controller ? "yes" : "no (reload once more)") + "\n" +
+        "DEVICE STORAGE WORKS: " + ls + "\n" +
+        "AD LIST SAVED ON DEVICE: " + (readSavedAds() ? "yes" : "no") + "\n" +
+        "ADS IN MEMORY: " + good + " of " + total + "\n" +
+        "LAST ERROR: " + (lastError || "none");
+    };
+    diagReport();
+    setInterval(diagReport, 2000);
+  }
+} catch (e) {}
 
 // ─── Init ───────────────────────────────────────────────────────────
 loadAds();
