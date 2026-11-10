@@ -2,8 +2,9 @@
    - Page and ads.json: network first (so changes still arrive); saved copy if
      the network fails or takes over 4 seconds.
    - Ad images: saved copy first, so a slow or dead connection never matters.
-     A saved image is re-downloaded in the background once it is 6 hours old,
-     so replacing a file under the same name still reaches the boards.
+     Once a saved image is 6 hours old the network is asked first (4 second
+     limit, saved copy as the fallback), so replacing a file under the same
+     name reaches the boards on their next reload.
    - Saved images that are no longer listed in ads.json are removed.
    - Video (range requests) and anything on another site: untouched. */
 var CACHE = "levelup-ads-v1";
@@ -74,10 +75,22 @@ function mediaCacheFirst(e, key){
     return c.match(key).then(function(hit){
       if(!hit) return fetchAndSaveMedia(e.request, key, c);
       var savedAt = Number(hit.headers.get("X-Saved-At") || 0);
-      if(Date.now() - savedAt > MEDIA_REFRESH_MS){
-        e.waitUntil(fetchAndSaveMedia(e.request, key, c)["catch"](function(){}));
-      }
-      return hit;
+      if(Date.now() - savedAt <= MEDIA_REFRESH_MS) return hit;
+      // Saved copy is over 6 hours old: ask the network for the current file
+      // first, so an image replaced under the same name shows up straight away.
+      // If the network fails or takes over 4 seconds, use the saved copy.
+      return new Promise(function(resolve){
+        var done = false;
+        var timer = setTimeout(function(){ if(!done){ done = true; resolve(hit); } }, TIMEOUT_MS);
+        var p = fetchAndSaveMedia(e.request, key, c).then(function(res){
+          clearTimeout(timer);
+          if(!done){ done = true; resolve(res && res.ok ? res : hit); }
+        }, function(){
+          clearTimeout(timer);
+          if(!done){ done = true; resolve(hit); }
+        });
+        e.waitUntil(p);   // a slow download still finishes and is saved for next time
+      });
     });
   });
 }
